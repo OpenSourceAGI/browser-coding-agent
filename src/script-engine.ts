@@ -2129,7 +2129,7 @@ export class ScriptEngine {
         resolverForWorker,
         this.proc.env as Record<string, string>,
         this.fsBridge,
-        (threadPoolPolyfill as any)._workerThreadForkFn ?? null,
+        threadPoolPolyfill.getWorkerThreadForkFn(),
         this.opts.enableSharedArrayBuffer ?? true,
       );
       threadPoolPolyfill.setWorkerConstructorOverride((self, script, opts) => {

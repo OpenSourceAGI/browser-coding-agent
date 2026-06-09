@@ -39,6 +39,10 @@ export function setWorkerThreadForkCallback(fn: WorkerThreadForkFn): void {
   _workerThreadForkFn = fn;
 }
 
+export function getWorkerThreadForkFn(): WorkerThreadForkFn | null {
+  return _workerThreadForkFn;
+}
+
 // script-engine injects a PatchedWorker factory here for napi-rs WASI worker support, factory gets (script, opts) like the constructor
 let _workerConstructorOverride: ((self: any, script: string | URL, opts?: any) => void) | null = null;
 
