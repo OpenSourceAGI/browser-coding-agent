@@ -16,7 +16,7 @@ export class NodepodFS {
     this._vol.writeFileSync(path, data as any);
   }
 
-  async readFile(path: string, encoding?: "utf-8" | "utf8"): Promise<string>;
+  async readFile(path: string, encoding: "utf-8" | "utf8"): Promise<string>;
   async readFile(path: string): Promise<Uint8Array>;
   async readFile(
     path: string,

@@ -85,7 +85,18 @@ async function main() {
 
       const data = await fs.readFile(filePath);
       const ext = path.extname(filePath);
-      res.writeHead(200, { 'Content-Type': contentTypeByExt(ext) });
+      const headers = {
+        'Content-Type': contentTypeByExt(ext),
+        // Cross-origin isolation enables SharedArrayBuffer (execSync,
+        // threaded wasi modules) inside Nodepod.
+        'Cross-Origin-Opener-Policy': 'same-origin',
+        'Cross-Origin-Embedder-Policy': 'credentialless',
+      };
+      if (urlPath === '/__sw__.js') {
+        headers['Cache-Control'] = 'no-store';
+        headers['Service-Worker-Allowed'] = '/';
+      }
+      res.writeHead(200, headers);
       res.end(data);
     } catch (err) {
       res.writeHead(500);
