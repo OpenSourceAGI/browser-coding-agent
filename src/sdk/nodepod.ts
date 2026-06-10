@@ -1,5 +1,5 @@
 import { MemoryVolume } from "../memory-volume";
-import { DependencyInstaller } from "../packages/installer";
+import { DependencyInstaller, type InstallFlags } from "../packages/installer";
 import {
   RequestProxy,
   getProxyInstance,
@@ -441,6 +441,25 @@ export class Nodepod {
       return `${this._cwd}/${filePath}`.replace(/\/+/g, "/");
     }
     return cmd;
+  }
+
+  /* ---- install() ---- */
+
+  // Install npm packages into the virtual filesystem. Accepts a single
+  // specifier or a list ("express", "vite@5"). With no arguments, installs
+  // everything declared in /package.json.
+  async install(
+    packages?: string | string[],
+    flags: InstallFlags = {},
+  ): Promise<void> {
+    if (packages === undefined) {
+      await this._packages.installFromManifest(undefined, flags);
+      return;
+    }
+    const specs = Array.isArray(packages) ? packages : [packages];
+    for (const spec of specs) {
+      await this._packages.install(spec, undefined, flags);
+    }
   }
 
   /* ---- createTerminal() ---- */

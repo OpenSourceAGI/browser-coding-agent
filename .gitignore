@@ -37,3 +37,6 @@ coverage/
 
 # Local research / planning notes (Claude Code scratch)
 memory/
+
+# IDE app build output
+out/
