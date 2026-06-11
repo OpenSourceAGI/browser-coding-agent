@@ -78,15 +78,19 @@ export class FakeNodepodHost implements IdeHost {
       proc._finish(130);
     });
     const script = this._commands.get(cmd);
-    queueMicrotask(() => {
+    // Run on a macrotask so callers attach listeners before any output,
+    // mirroring the real runtime where output arrives from a Web Worker
+    // after spawn() resolves.
+    setTimeout(() => {
       if (!script) {
         proc._pushStderr(`${cmd}: command not found\n`);
         proc._finish(127);
         return;
       }
-      Promise.resolve(
-        script({ cmd, args, opts, volume: this.volume, proc, host: this }),
-      )
+      Promise.resolve()
+        .then(() =>
+          script({ cmd, args, opts, volume: this.volume, proc, host: this }),
+        )
         .then((code) => {
           if (!proc.exited) proc._finish(typeof code === "number" ? code : 0);
         })
@@ -96,7 +100,7 @@ export class FakeNodepodHost implements IdeHost {
             proc._finish(1);
           }
         });
-    });
+    }, 0);
     return proc;
   }
 

@@ -218,28 +218,44 @@ npm test                # run tests
 npm version patch       # or minor / major
 npm publish             # auto-builds before publishing
 git push && git push --tags
+```
 
-## Running VS Code in Nodepod
+## Web IDE (VS Code in Nodepod)
 
-Follow the OpenVSCode quickstart in `docs/QUICKSTART_OPENVSCODE.md` to build the workbench, then host the built assets alongside Nodepod so the service worker is available at `/__sw__.js`.
-
-Minimal example (adjust paths to your build output):
+This repo ships an OpenVSCode-inspired web IDE built entirely on Nodepod:
+file explorer, tabbed editor, xterm.js terminal, and a live preview pane,
+all backed by the in-browser runtime. See
+[docs/architecture-ide.md](./docs/architecture-ide.md) for the full
+architecture and data flow.
 
 ```bash
-# Build OpenVSCode/workbench per docs/QUICKSTART_OPENVSCODE.md
-# Serve the built assets (example uses `serve` to host the static output)
-npm install -g serve
-serve -s ./out -l 3000
-
-# Ensure Nodepod's service worker is available at /__sw__.js
-cp node_modules/@scelar/nodepod/dist/__sw__.js public/__sw__.js
-
-# Open the workbench page (replace with your entry point)
-open http://localhost:3000/vscode.html
+npm run dev:ide            # develop at http://localhost:5173/vscode.html
+npm run build:ide          # build the app into out/ (vscode.html + __sw__.js)
+npm run run:vscode-nodepod # serve out/ with COOP/COEP + SW headers
 ```
 
-See `docs/QUICKSTART_OPENVSCODE.md` for detailed integration steps and troubleshooting.
+The IDE kit is also published as a subpath export for embedding in your
+own app:
+
+```typescript
+import { Nodepod } from '@scelar/nodepod';
+import { NodepodIde, PreviewManager, buildBootOptions } from '@scelar/nodepod/ide';
+import { Terminal } from '@xterm/xterm';
+import { FitAddon } from '@xterm/addon-fit';
+
+const previews = new PreviewManager();
+const nodepod = await Nodepod.boot(
+  buildBootOptions({ files: { '/index.js': "console.log('hi')" } }, previews),
+);
+previews.bindHost(nodepod);
+
+const ide = new NodepodIde({ host: nodepod, previews, xterm: { Terminal, FitAddon } });
+ide.mount(document.getElementById('app'));
 ```
+
+The data layer is usable without the UI too: `NodepodFileSystem` (repository
+layer over `nodepod.fs`), `ProcessRunner` (around `nodepod.spawn`), and
+`PreviewManager` (around `nodepod.port` / `setPreviewScript`).
 
 ### Contributing
 

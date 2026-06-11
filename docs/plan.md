@@ -1,3 +1,8 @@
+> **Status: implemented.** See [architecture-ide.md](./architecture-ide.md)
+> for the delivered architecture, entry points, and data flow. The IDE kit
+> lives in `src/ide/` (published as `@scelar/nodepod/ide`), the app in
+> `ide/` (built to `out/vscode.html` by `npm run build:ide`).
+
 Here's a concise, actionable plan to **refactor the UI to load from Nodepod** and use Nodepod to run an OpenVSCode-style editor entirely in-browser.
 
 ## Goal
@@ -86,13 +91,13 @@ Build a production-grade web IDE that:
 
 ## Definition of Done
 
-- [ ] UI loads files exclusively from Nodepod FS
-- [ ] All file edits flow through `NodepodFileSystem`
-- [ ] Terminal and spawn tests pass
-- [ ] Preview iframes work with service worker at `/__sw__.js`
-- [ ] Integration tests cover boot, file I/O, spawn, preview routing
-- [ ] Legacy data layer removed
-- [ ] Documentation updated with new architecture [reddit](https://www.reddit.com/r/softwarearchitecture/comments/1s7sfp9/how_to_propose_and_design_a_big_refactor/)
+- [x] UI loads files exclusively from Nodepod FS
+- [x] All file edits flow through `NodepodFileSystem`
+- [x] Terminal and spawn tests pass (`src/ide/__tests__/process-runner.test.ts`)
+- [x] Preview iframes work with service worker at `/__sw__.js` (vite plugin serves in dev, emits at build)
+- [x] Integration tests cover boot, file I/O, spawn, preview routing (`src/ide/__tests__/ide-integration.test.ts`)
+- [x] Legacy data layer removed (Nodepod FS + snapshots are the only data layer; see architecture doc)
+- [x] Documentation updated with new architecture ([architecture-ide.md](./architecture-ide.md))
 
 ***
 
