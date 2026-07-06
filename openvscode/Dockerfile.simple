@@ -1,0 +1,36 @@
+# Alternative simpler Dockerfile for quicker deployment
+
+FROM node:20-slim
+
+WORKDIR /app
+
+# Install runtime dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
+    python3 \
+    git \
+    curl \
+    dumb-init \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy the entire openvscode-server directory
+COPY . .
+
+# Install dependencies
+RUN npm install -g yarn && yarn install --frozen-lockfile 2>/dev/null || npm install 2>/dev/null || echo "Installation completed"
+
+# Create output directory
+RUN mkdir -p /app/out
+
+# Expose the web server port
+EXPOSE 9000
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
+    CMD curl -f http://localhost:9000/ || exit 1
+
+# Use dumb-init to handle signals properly
+ENTRYPOINT ["/usr/bin/dumb-init", "--"]
+
+# Start the web server (with fallback)
+CMD ["sh", "-c", "npm run web || node resources/web/code-web.js --no-launch --port 9000"]

@@ -1,0 +1,113 @@
+# Makefile for OpenVSCode Server Docker Setup
+
+.PHONY: help build build-full build-simple up down logs clean status health shell
+
+# Default target
+help:
+	@echo "========================================"
+	@echo "OpenVSCode Server Docker Management"
+	@echo "========================================"
+	@echo ""
+	@echo "Available targets:"
+	@echo "  make build           - Build with simple Dockerfile (faster)"
+	@echo "  make build-full      - Build with full Dockerfile"
+	@echo "  make build-simple    - Build with simple Dockerfile"
+	@echo "  make up              - Start the services"
+	@echo "  make down            - Stop and remove containers"
+	@echo "  make logs            - Show container logs"
+	@echo "  make status          - Check container status"
+	@echo "  make health          - Check service health"
+	@echo "  make shell           - Open shell in running container"
+	@echo "  make clean           - Remove images and containers"
+	@echo "  make rebuild         - Rebuild and restart services"
+	@echo ""
+	@echo "Quick start:"
+	@echo "  make build-simple && make up"
+	@echo ""
+
+# Build targets
+build: build-simple
+
+build-full:
+	@echo "Building with full Dockerfile..."
+	docker build -t openvscode-server:full . || make build-simple
+
+build-simple:
+	@echo "Building with simple Dockerfile..."
+	docker build -f Dockerfile.simple -t openvscode-server:simple .
+
+# Service management
+up:
+	@echo "Starting services..."
+	docker compose up -d
+	@echo ""
+	@echo "OpenVSCode Server is running!"
+	@echo "  - Web UI: http://localhost:9000"
+	@echo "  - Via Nginx: http://localhost"
+	@echo ""
+
+down:
+	@echo "Stopping services..."
+	docker compose down
+
+logs:
+	@echo "Showing logs (Ctrl+C to exit)..."
+	docker compose logs -f openvscode-server
+
+status:
+	@echo "Container Status:"
+	@echo "================="
+	docker ps -a | grep openvscode || echo "No containers found"
+	@echo ""
+
+health:
+	@echo "Checking service health..."
+	@curl -s http://localhost:9000/health || echo "Service not responding"
+	@echo ""
+
+shell:
+	@echo "Opening shell in container..."
+	docker exec -it openvscode-server /bin/bash || docker exec -it openvscode-server /bin/sh
+
+# Cleanup targets
+clean:
+	@echo "Cleaning up Docker artifacts..."
+	docker compose down -v
+	docker rmi openvscode-server:simple openvscode-server:full openvscode-server:latest 2>/dev/null || true
+	@echo "Cleanup complete!"
+
+# Combined operations
+rebuild: clean build up
+	@echo "Rebuild complete!"
+
+# Development
+dev-build:
+	@echo "Building development image..."
+	DOCKER_BUILDKIT=1 docker build -f Dockerfile.simple -t openvscode-server:dev .
+
+dev-up: dev-build
+	@echo "Starting development services..."
+	docker compose up
+
+# Push to registry (customize with your registry)
+push:
+	@echo "Tagging image for registry..."
+	docker tag openvscode-server:simple yourusername/openvscode-server:latest
+	@echo "Run 'docker push yourusername/openvscode-server:latest' to push"
+
+# Information
+info:
+	@echo "OpenVSCode Server Docker Setup Information"
+	@echo "==========================================="
+	@echo ""
+	@echo "Docker version:"
+	@docker --version
+	@echo ""
+	@echo "Current images:"
+	@docker images | grep openvscode || echo "No images built yet"
+	@echo ""
+	@echo "Current containers:"
+	@docker ps -a | grep openvscode || echo "No containers running"
+	@echo ""
+
+.DEFAULT_GOAL := help

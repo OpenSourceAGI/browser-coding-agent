@@ -9,7 +9,6 @@ import "@xterm/xterm/css/xterm.css";
 
 import { Nodepod, NodepodSWSetupError } from "../src/index";
 import {
-  NodepodIde,
   PreviewManager,
   WorkspaceStore,
   buildBootOptions,
@@ -19,6 +18,12 @@ import {
   isFlagEnabled,
   DEFAULT_IDE_FLAGS,
 } from "../src/ide";
+// Note: `NodepodIde` (the custom UI) is kept in the codebase but we prefer
+// to reuse the adapted OpenVSCode Server web UI when its `out` build is
+// available under `/openvscode-server/out`. If present we'll load the
+// OpenVSC bootstrap and initialize the workbench; otherwise fall back to
+// the existing `NodepodIde` shell.
+import { NodepodIde } from "../src/ide/app";
 import { STARTER_FILES } from "./starter-files";
 
 const appEl = document.getElementById("app")!;
@@ -82,9 +87,60 @@ async function main(): Promise<void> {
     title: "VS Code in Nodepod",
   });
 
-  appEl.innerHTML = "";
+  // Try to detect an OpenVSCode Server web build at /openvscode-server/out
+  try {
+    const resp = await fetch('/openvscode-server/out/vs/loader.js', { method: 'HEAD' });
+    if (resp.ok && typeof (window as any).MonacoBootstrapWindow === 'undefined') {
+      // Inject the OpenVSC bootstrap script which defines `MonacoBootstrapWindow`
+      await new Promise<void>((resolve, reject) => {
+        const s = document.createElement('script');
+        s.src = '/openvscode-server/src/bootstrap-window.js';
+        s.onload = () => resolve();
+        s.onerror = (e) => reject(new Error('Failed to load OpenVSC bootstrap'));
+        document.head.appendChild(s);
+      });
+    }
+
+    if ((window as any).MonacoBootstrapWindow) {
+      console.info('[ide] OpenVSC build detected — booting OpenVSCode Server UI');
+      appEl.innerHTML = '';
+      // Ensure a container for the workbench exists
+      const wb = document.createElement('div');
+      wb.id = 'workbench';
+      wb.style.width = '100%';
+      wb.style.height = '100%';
+      appEl.append(wb);
+
+      // Load the web workbench module. Use beforeLoaderConfig to point
+      // the AMD loader to the prebuilt `out` directory.
+      (window as any).MonacoBootstrapWindow.load([
+        'vs/workbench/workbench.web.main'
+      ], (_result: any, configuration: any) => {
+        console.info('[ide] OpenVSC workbench loaded', configuration);
+        return undefined;
+      }, {
+        beforeLoaderConfig: (_configuration: any, loaderConfig: any) => {
+          loaderConfig.baseUrl = `${location.origin}/openvscode-server/out`;
+        },
+        canModifyDOM: (_configuration: any) => {
+          // Nothing special to do — we already created #workbench inside `app`.
+        }
+      });
+      // We still expose the nodepod/ide globals for compatibility.
+      (window as any).nodepod = nodepod;
+      (window as any).ide = ide;
+      // Attempt to open default file in the legacy editor too (best-effort)
+      await ide.editor.open('/server.js').catch(() => undefined);
+      return;
+    }
+  } catch (err) {
+    console.warn('[ide] OpenVSC UI not available, falling back to NodepodIde:', err);
+  }
+
+  // Fallback: mount the original NodepodIde UI
+  appEl.innerHTML = '';
   ide.mount(appEl);
-  await ide.editor.open("/server.js").catch(() => undefined);
+  await ide.editor.open('/server.js').catch(() => undefined);
 
   // Handy for poking around in devtools.
   (window as any).nodepod = nodepod;

@@ -1,0 +1,212 @@
+@import "tailwindcss";
+@import "@xterm/xterm/css/xterm.css";
+
+:root {
+  /* Theme colors — overridden dynamically by JS */
+  --bg0: #0e1116;
+  --bg1: #12161b;
+  --bg2: #15191e;
+  --bg3: #1a1f26;
+  --bg4: #1c2028;
+  --border: #1f242b;
+  --hover: #20252b;
+  --selection: #264f78;
+  --text1: #e5e7eb;
+  --text2: #abb2bf;
+  --text3: #9ca3af;
+  --text4: #555d6b;
+  --text5: #3b4048;
+  --accent: #62aeea;
+  --accent-hover: #5098d4;
+  --focus: #3e8eea;
+  --added: #98c379;
+  --modified: #62aeea;
+  --deleted: #e06c75;
+  --warning: #e5c07b;
+  --git-branch: #89ddff;
+  --purple: #dfa0f0;
+  --scroll-thumb: #2a2f37;
+  --scroll-thumb-hover: #3b4048;
+
+  color-scheme: dark;
+}
+
+@theme inline {
+  --color-background: var(--bg0);
+  --color-foreground: var(--text2);
+
+  /* Expose theme tokens to Tailwind */
+  --color-bg0: var(--bg0);
+  --color-bg1: var(--bg1);
+  --color-bg2: var(--bg2);
+  --color-bg3: var(--bg3);
+  --color-bg4: var(--bg4);
+  --color-border: var(--border);
+  --color-hover: var(--hover);
+  --color-selection: var(--selection);
+  --color-t1: var(--text1);
+  --color-t2: var(--text2);
+  --color-t3: var(--text3);
+  --color-t4: var(--text4);
+  --color-t5: var(--text5);
+  --color-accent: var(--accent);
+  --color-accent-hover: var(--accent-hover);
+  --color-focus: var(--focus);
+  --color-added: var(--added);
+  --color-modified: var(--modified);
+  --color-deleted: var(--deleted);
+  --color-warning: var(--warning);
+  --color-git-branch: var(--git-branch);
+  --color-purple: var(--purple);
+  --color-scroll-thumb: var(--scroll-thumb);
+  --color-scroll-thumb-hover: var(--scroll-thumb-hover);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  width: 100%;
+  overflow: hidden;
+  background: var(--bg0);
+  color: var(--text2);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Roboto",
+    "Helvetica Neue", Arial, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+/* Scrollbar styling */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--scroll-thumb);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--scroll-thumb-hover);
+}
+
+::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+/* Hide scrollbar */
+.scrollbar-none::-webkit-scrollbar {
+  display: none;
+}
+.scrollbar-none {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+/* Tab bar scrollbar */
+.tabbar-scroll::-webkit-scrollbar {
+  height: 4px;
+}
+.tabbar-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+.tabbar-scroll::-webkit-scrollbar-thumb {
+  background: transparent;
+  border-radius: 2px;
+  transition: background 0.15s;
+}
+.tabbar-scroll:hover::-webkit-scrollbar-thumb {
+  background: var(--scroll-thumb);
+}
+.tabbar-scroll:hover::-webkit-scrollbar-thumb:hover {
+  background: var(--scroll-thumb-hover);
+}
+.tabbar-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: transparent transparent;
+}
+.tabbar-scroll:hover {
+  scrollbar-color: var(--scroll-thumb) transparent;
+}
+
+/* Thin scrollbar variant */
+.scrollbar-thin::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+.scrollbar-thin::-webkit-scrollbar-thumb {
+  background: var(--hover);
+  border-radius: 3px;
+}
+
+.scrollbar-thin::-webkit-scrollbar-thumb:hover {
+  background: var(--scroll-thumb);
+}
+
+/* Title bar drag region */
+.app-drag-region {
+  -webkit-app-region: drag;
+}
+
+.app-drag-region button,
+.app-drag-region input,
+.app-drag-region a {
+  -webkit-app-region: no-drag;
+}
+
+/* Selection color */
+::selection {
+  background: var(--selection);
+  color: var(--text1);
+}
+
+/* Focus outlines */
+:focus-visible {
+  outline: 1px solid var(--focus);
+  outline-offset: -1px;
+}
+
+/* Remove default focus outline from form elements — they use border-focus instead */
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  outline: none;
+}
+
+.monaco-editor:focus-visible {
+  outline: none;
+}
+
+/* Animations */
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes slideDown {
+  from { opacity: 0; transform: translateY(-8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+@keyframes cursorBlink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
+}

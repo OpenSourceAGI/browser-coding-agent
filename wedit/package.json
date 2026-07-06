@@ -1,0 +1,53 @@
+{
+  "name": "weditor",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "npx open-ready vinext dev",
+    "build": "vinext build",
+    "start": "vinext start",
+    "lint": "vinext lint",
+    "deploy": " vinext deploy"
+  },
+  "dependencies": {
+    "@itsmeadarsh/warper": "^7.2.0",
+    "@monaco-editor/react": "^4.7.0",
+    "@scelar/nodepod": "^1.8.2",
+    "@vitejs/plugin-rsc": "^0.5.27",
+    "@xterm/addon-fit": "^0.11.0",
+    "@xterm/xterm": "^6.0.0",
+    "clsx": "^2.1.1",
+    "lucide-react": "^1.17.0",
+    "react": "^19.2.7",
+    "react-dom": "^19.2.7",
+    "tailwind-merge": "^3.6.0",
+    "zustand": "^5.0.14"
+  },
+  "devDependencies": {
+    "@cloudflare/vite-plugin": "^1.40.1",
+    "@tailwindcss/postcss": "^4.3.0",
+    "@tailwindcss/vite": "^4.3.0",
+    "@types/node": "^25.9.3",
+    "@types/react": "^19.2.17",
+    "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-react": "^6.0.2",
+    "eslint": "^10.4.1",
+    "eslint-config-next": "16.2.9",
+    "next": "16.2.9",
+    "react-server-dom-webpack": "^19.2.7",
+    "tailwindcss": "^4.3.0",
+    "typescript": "6.0.3",
+    "vinext": "^0.1.1",
+    "vite": "^8.0.16",
+    "wrangler": "^4.99.0"
+  },
+  "ignoreScripts": [
+    "sharp",
+    "unrs-resolver"
+  ],
+  "trustedDependencies": [
+    "sharp",
+    "unrs-resolver"
+  ],
+  "type": "module"
+}
