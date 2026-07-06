@@ -1,3 +1,7 @@
+
+![weditor_logo](https://i.imgur.com/LAvXR6l.png)
+
+
 # VS Code in Nodepod
 
 [![npm](https://img.shields.io/npm/v/@scelar/nodepod.svg)](https://www.npmjs.com/package/@scelar/nodepod)
