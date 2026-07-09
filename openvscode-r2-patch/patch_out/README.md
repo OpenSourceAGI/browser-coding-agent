@@ -68,8 +68,9 @@ extension/
 worker/
   wrangler.jsonc                assets + R2 + D1 + Sandbox container bindings
   src/index.js                  router: static assets, /api/fs/*, /api/shell/*
-  src/r2fs.js                   pure R2 CRUD -- no sandbox import
+   src/r2fs.js                   R2 CRUD + stat/readdir cache + recursive rename
   src/shellSandbox.js           the ONLY file that imports @cloudflare/sandbox
+   public/workbench.html         browser entrypoint with create(..., config)
 ```
 
 ## Wiring it up
@@ -113,6 +114,16 @@ worker/
 6. **Serve the vscode-web static build** into `worker/public/` (the `assets`
    binding in `wrangler.jsonc`), replacing the placeholder `index.html`
    created for the dry-run check.
+
+## R2 semantics implemented
+
+`worker/src/r2fs.js` now covers the R2 flat-namespace quirks directly:
+
+- `readdir` uses `list({ prefix, delimiter: '/' })` and hides `.keep` markers.
+- `mkdir` creates a zero-byte `.keep` object so empty directories appear.
+- `rename` supports file rename and directory rename recursively as copy+delete.
+- `stat` and `readdir` responses are cached in-memory (short TTL) in the Worker
+   to reduce repeated list/head calls during explorer tree expansion.
 
 ## Known limitation carried over
 

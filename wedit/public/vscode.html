@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="color-scheme" content="dark" />
+    <title>VS Code in Nodepod</title>
+    <style>
+      html,
+      body {
+        margin: 0;
+        padding: 0;
+        width: 100%;
+        height: 100%;
+        overflow: hidden;
+        background: #1e1e1e;
+        color: #ccc;
+        font-family: -apple-system, "Segoe UI", Ubuntu, sans-serif;
+      }
+      #app {
+        width: 100%;
+        height: 100%;
+      }
+      .boot-splash {
+        height: 100%;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 12px;
+      }
+      .boot-splash .spinner {
+        width: 28px;
+        height: 28px;
+        border: 3px solid #3c3c3c;
+        border-top-color: #007acc;
+        border-radius: 50%;
+        animation: npde-spin 0.8s linear infinite;
+      }
+      .boot-splash pre {
+        color: #f48771;
+        max-width: 80ch;
+        white-space: pre-wrap;
+      }
+      @keyframes npde-spin {
+        to {
+          transform: rotate(360deg);
+        }
+      }
+    </style>
+    <script type="module" crossorigin src="/assets/vscode-KWnr8WqG.js"></script>
+    <link rel="stylesheet" crossorigin href="/assets/vscode-DOrYoP_4.css">
+  </head>
+  <body>
+    <div id="app">
+      <div class="boot-splash">
+        <div class="spinner"></div>
+        <div>Booting Nodepod runtime…</div>
+      </div>
+    </div>
+  </body>
+</html>

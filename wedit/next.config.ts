@@ -6,7 +6,8 @@ const nextConfig: NextConfig = {
   // Empty turbopack config to silence Next.js 16 warning
   turbopack: {},
 
-  // Required for SharedArrayBuffer support (nodepod worker threading)
+  // Required for SharedArrayBuffer support (nodepod worker threading).
+  // Covers all routes including /vscode and static public files.
   async headers() {
     return [
       {
