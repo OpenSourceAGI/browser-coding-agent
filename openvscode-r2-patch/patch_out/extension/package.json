@@ -1,0 +1,55 @@
+{
+  "name": "r2fs-provider",
+  "displayName": "R2 Workspace (serverless FS + on-demand shell)",
+  "description": "Backs the workspace with Cloudflare R2 over HTTP; spins up a Sandbox container only when a terminal is opened.",
+  "version": "0.1.0",
+  "publisher": "vtempest",
+  "engines": {
+    "vscode": "^1.90.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "browser": "./dist/extension.js",
+  "capabilities": {
+    "virtualWorkspaces": true,
+    "untrustedWorkspaces": {
+      "supported": true
+    }
+  },
+  "activationEvents": [
+    "onFileSystem:r2fs",
+    "onStartupFinished"
+  ],
+  "contributes": {
+    "terminal": {
+      "profiles": [
+        {
+          "id": "r2fs.shell",
+          "title": "R2 Sandbox Shell"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "R2 Workspace",
+      "properties": {
+        "r2fs.apiBase": {
+          "type": "string",
+          "default": "",
+          "description": "Base URL of the Worker API, e.g. https://vscode-cloud.example.workers.dev"
+        }
+      }
+    }
+  },
+  "scripts": {
+    "build": "node esbuild.js",
+    "watch": "node esbuild.js --watch"
+  },
+  "devDependencies": {
+    "esbuild": "^0.23.0"
+  },
+  "main": "esbuild.js",
+  "keywords": [],
+  "author": "",
+  "license": "ISC"
+}

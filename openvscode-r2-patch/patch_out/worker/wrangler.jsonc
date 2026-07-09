@@ -1,0 +1,46 @@
+{
+  "name": "vscode-cloud-worker",
+  "main": "src/index.js",
+  "compatibility_date": "2026-06-01",
+  "compatibility_flags": ["nodejs_compat"],
+
+  // Static vscode-web (browser-only, no REH) build output. This is what
+  // makes the editor UI boot with zero container cold start -- it's just
+  // static assets + the R2 FS API, same shape as vscode.dev / github.dev.
+  "assets": {
+    "directory": "./public",
+    "binding": "ASSETS"
+  },
+
+  // Sandbox is ONLY reached from src/shellSandbox.js, only when a terminal
+  // is opened. It stays completely idle (no container running, no cost)
+  // for every user who's just editing files.
+  "containers": [
+    {
+      "class_name": "Sandbox",
+      "image": "../Dockerfile",
+      "instance_type": "standard-1",
+      "max_instances": 25
+    }
+  ],
+  "durable_objects": {
+    "bindings": [{ "name": "Sandbox", "class_name": "Sandbox" }]
+  },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["Sandbox"] }],
+
+  // RPC transport is required for Sandbox SDK versions shipped after
+  // 2026-07-09 (HTTP/WebSocket transports are being removed) -- set this
+  // now so you're not scrambling on that date.
+  "vars": {
+    "SANDBOX_TRANSPORT": "rpc",
+    "R2_ACCOUNT_ID": "YOUR_ACCOUNT_ID"
+  },
+
+  "r2_buckets": [
+    { "binding": "WORKSPACES", "bucket_name": "vscode-workspaces" }
+  ],
+
+  "d1_databases": [
+    { "binding": "DB", "database_id": "YOUR_D1_ID", "database_name": "vscode-users" }
+  ]
+}

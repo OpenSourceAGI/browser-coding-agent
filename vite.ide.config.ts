@@ -25,6 +25,20 @@ export default defineConfig({
   plugins: [wasm(), topLevelAwait(), inlineProcessWorkerPlugin(), nodepod()],
   server: {
     headers: crossOriginIsolationHeaders,
+    fs: {
+      // Allow serving files from openvscode directory
+      allow: [
+        resolve(repoRoot),
+        resolve(repoRoot, "openvscode"),
+      ],
+    },
+    proxy: {
+      // Serve OpenVSCode files if they exist
+      '/openvscode-server': {
+        target: 'http://localhost:5173',
+        rewrite: (path) => path.replace(/^\/openvscode-server/, '/openvscode'),
+      },
+    },
   },
   preview: {
     headers: crossOriginIsolationHeaders,
@@ -43,5 +57,10 @@ export default defineConfig({
   },
   worker: {
     format: "es",
+  },
+  resolve: {
+    alias: {
+      '/openvscode-server': resolve(repoRoot, 'openvscode'),
+    },
   },
 });
