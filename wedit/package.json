@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "npx open-ready vinext dev",
-    "dev:vscode": "node ../scripts/copy-ide-assets.mjs && vinext dev",
+    "dev:vscode": "node ../scripts/copy-ide-assets.mjs && node server.mjs",
     "build": "vinext build",
     "start": "vinext start",
     "lint": "vinext lint",

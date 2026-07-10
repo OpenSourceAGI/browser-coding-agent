@@ -3,7 +3,7 @@
 export default function VSCodePage() {
   return (
     <iframe
-      src="/vscode.html"
+      src="/vscode-app"
       style={{
         width: "100vw",
         height: "100vh",
