@@ -1,0 +1,44 @@
+{
+  // Reference Worker configuration for a deployment that includes the optional
+  // cloud terminal. Drop the `containers`, `durable_objects` and `migrations`
+  // blocks entirely if you only want the browser runtime — everything except
+  // the sandbox terminal keeps working without them.
+  "name": "opends-code",
+  "main": "worker/index.js",
+  "compatibility_date": "2026-06-01",
+  "compatibility_flags": ["nodejs_compat"],
+
+  // The workbench build (scripts/fetch-workbench.mjs) plus the bridge
+  // extension. This is the whole editor: static files, no server rendering.
+  "assets": {
+    "directory": "./public",
+    "binding": "ASSETS"
+  },
+
+  "r2_buckets": [{ "binding": "WORKSPACES", "bucket_name": "opends-workspaces" }],
+
+  "vars": {
+    // Required by the Sandbox SDK: the HTTP and WebSocket transports were
+    // removed after 2026-07-09.
+    "SANDBOX_TRANSPORT": "rpc",
+    "R2_BUCKET_NAME": "opends-workspaces",
+    "R2_ACCOUNT_ID": "YOUR_ACCOUNT_ID"
+  },
+
+  // Secrets (set with `wrangler secret put`):
+  //   SHELL_TICKET_SECRET  32+ random bytes; signs the terminal WebSocket ticket.
+  //                        Cloud terminals stay disabled until this exists.
+
+  "containers": [
+    {
+      "class_name": "Sandbox",
+      "image": "../docker/Dockerfile",
+      "instance_type": "standard-1",
+      "max_instances": 25
+    }
+  ],
+  "durable_objects": {
+    "bindings": [{ "name": "Sandbox", "class_name": "Sandbox" }]
+  },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["Sandbox"] }]
+}

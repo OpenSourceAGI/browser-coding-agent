@@ -1,6 +1,12 @@
 
 ![weditor_logo](https://i.imgur.com/LAvXR6l.png)
 
+> **New:** [`opends-code/`](./opends-code) packages this as a reusable Next.js
+> component — OpenVSCode Web running entirely client-side on the Nodepod
+> polyfills, persisting to Cloudflare R2, with an opt-in Cloudflare Sandbox
+> container for a full Linux terminal. See its
+> [README](./opends-code/README.md) and
+> [ARCHITECTURE](./opends-code/ARCHITECTURE.md).
 
 # VS Code in Nodepod
 
