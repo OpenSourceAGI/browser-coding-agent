@@ -1,0 +1,148 @@
+{
+  "name": "opends-bridge",
+  "displayName": "OpenDS Code Bridge",
+  "description": "Backs the workspace with an in-browser Node.js runtime, persists it to R2, and can escalate a terminal into a Cloudflare Sandbox container.",
+  "version": "0.1.0",
+  "publisher": "opensourceagi",
+  "license": "MIT",
+  "engines": {
+    "vscode": "^1.88.0"
+  },
+  "categories": ["Other"],
+  "browser": "./dist/extension.js",
+  "capabilities": {
+    "virtualWorkspaces": true,
+    "untrustedWorkspaces": {
+      "supported": true
+    }
+  },
+  "enabledApiProposals": ["fileSearchProvider", "textSearchProvider"],
+  "activationEvents": ["onFileSystem:opends", "onStartupFinished"],
+  "contributes": {
+    "taskDefinitions": [
+      {
+        "type": "opends",
+        "required": ["command"],
+        "properties": {
+          "command": {
+            "type": "string",
+            "description": "Command line to run in the in-browser shell."
+          }
+        }
+      }
+    ],
+    "resourceLabelFormatters": [
+      {
+        "scheme": "opends",
+        "formatting": {
+          "label": "${path}",
+          "separator": "/",
+          "tildify": false,
+          "workspaceSuffix": "OpenDS"
+        }
+      }
+    ],
+    "terminal": {
+      "profiles": [
+        {
+          "id": "opends.localTerminal",
+          "title": "node (browser)",
+          "icon": "$(terminal)"
+        },
+        {
+          "id": "opends.sandboxTerminal",
+          "title": "bash (cloud sandbox)",
+          "icon": "$(cloud)"
+        }
+      ]
+    },
+    "commands": [
+      {
+        "command": "opends.openLocalTerminal",
+        "title": "OpenDS: Open Browser Terminal",
+        "category": "OpenDS"
+      },
+      {
+        "command": "opends.openSandboxTerminal",
+        "title": "OpenDS: Open Cloud Sandbox Terminal",
+        "category": "OpenDS"
+      },
+      {
+        "command": "opends.syncNow",
+        "title": "OpenDS: Save Workspace to Cloud Storage",
+        "category": "OpenDS"
+      },
+      {
+        "command": "opends.pullFromStorage",
+        "title": "OpenDS: Reload Workspace from Cloud Storage",
+        "category": "OpenDS"
+      },
+      {
+        "command": "opends.installDependencies",
+        "title": "OpenDS: Install npm Dependencies",
+        "category": "OpenDS"
+      },
+      {
+        "command": "opends.runNpmScript",
+        "title": "OpenDS: Run npm Script",
+        "category": "OpenDS"
+      },
+      {
+        "command": "opends.openPreview",
+        "title": "OpenDS: Open Running Server Preview",
+        "category": "OpenDS"
+      },
+      {
+        "command": "opends.showLog",
+        "title": "OpenDS: Show Runtime Log",
+        "category": "OpenDS"
+      }
+    ],
+    "configuration": {
+      "title": "OpenDS Code",
+      "properties": {
+        "opends.sessionId": {
+          "type": "string",
+          "default": "",
+          "description": "Bridge channel id. Injected by the host page; do not set by hand."
+        },
+        "opends.scheme": {
+          "type": "string",
+          "default": "opends",
+          "description": "URI scheme served by the in-browser filesystem."
+        },
+        "opends.workspaceName": {
+          "type": "string",
+          "default": "workspace",
+          "description": "Folder name shown as the workspace root."
+        },
+        "opends.apiBase": {
+          "type": "string",
+          "default": "",
+          "description": "Base URL of the OpenDS server routes. Empty means no backend (fully offline session)."
+        },
+        "opends.sandboxAvailable": {
+          "type": "boolean",
+          "default": false,
+          "description": "Whether the Cloudflare Sandbox terminal profile is offered."
+        }
+      }
+    },
+    "menus": {
+      "commandPalette": [
+        {
+          "command": "opends.openSandboxTerminal",
+          "when": "config.opends.sandboxAvailable"
+        }
+      ]
+    }
+  },
+  "scripts": {
+    "build": "node build.mjs",
+    "watch": "node build.mjs --watch"
+  },
+  "devDependencies": {
+    "@types/vscode": "^1.88.0",
+    "esbuild": "^0.24.0"
+  }
+}

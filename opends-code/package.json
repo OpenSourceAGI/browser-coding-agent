@@ -1,0 +1,107 @@
+{
+  "name": "@opensourceagi/opends-code",
+  "version": "0.1.0",
+  "description": "OpenVSCode Web that runs entirely client-side on Nodepod polyfills (fs, shell, processes, npm), persists to Cloudflare R2, and can escalate a single terminal into a Cloudflare Sandbox container.",
+  "type": "module",
+  "license": "MIT",
+  "sideEffects": false,
+  "files": [
+    "dist",
+    "extension/dist",
+    "extension/package.json",
+    "scripts",
+    "docker"
+  ],
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./client": {
+      "types": "./dist/client/index.d.ts",
+      "default": "./dist/client/index.js"
+    },
+    "./react": {
+      "types": "./dist/react/index.d.ts",
+      "default": "./dist/react/index.js"
+    },
+    "./protocol": {
+      "types": "./dist/protocol/index.d.ts",
+      "default": "./dist/protocol/index.js"
+    },
+    "./storage": {
+      "types": "./dist/storage/index.d.ts",
+      "default": "./dist/storage/index.js"
+    },
+    "./server": {
+      "types": "./dist/server/index.d.ts",
+      "default": "./dist/server/index.js"
+    },
+    "./next": {
+      "types": "./dist/next/index.d.ts",
+      "default": "./dist/next/index.js"
+    },
+    "./worker": {
+      "types": "./dist/worker/index.d.ts",
+      "default": "./dist/worker/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "bin": {
+    "opends-fetch-workbench": "./scripts/fetch-workbench.mjs",
+    "opends-install-openvscode": "./scripts/install-into-openvscode.mjs"
+  },
+  "scripts": {
+    "build": "npm run build:lib && npm run build:extension",
+    "build:lib": "tsc -p tsconfig.build.json",
+    "build:extension": "node extension/build.mjs",
+    "watch:extension": "node extension/build.mjs --watch",
+    "type-check": "tsc -p tsconfig.json --noEmit && tsc -p extension/tsconfig.json",
+    "test": "npm run build:lib && node tests/smoke.mjs",
+    "fetch:workbench": "node scripts/fetch-workbench.mjs",
+    "install:openvscode": "node scripts/install-into-openvscode.mjs",
+    "prepublishOnly": "npm run build"
+  },
+  "keywords": [
+    "vscode",
+    "openvscode",
+    "vscode-web",
+    "browser-ide",
+    "nodepod",
+    "webcontainer",
+    "cloudflare",
+    "r2",
+    "sandbox",
+    "nextjs"
+  ],
+  "peerDependencies": {
+    "@cloudflare/sandbox": "^0.12.0",
+    "@scelar/nodepod": ">=1.9.0",
+    "next": "^13.0.0 || ^14.0.0 || ^15.0.0 || ^16.0.0",
+    "react": "^18.0.0 || ^19.0.0"
+  },
+  "peerDependenciesMeta": {
+    "@cloudflare/sandbox": {
+      "optional": true
+    },
+    "next": {
+      "optional": true
+    },
+    "react": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20250801.0",
+    "@types/node": "^22.0.0",
+    "@types/react": "^19.0.0",
+    "@types/vscode": "^1.90.0",
+    "esbuild": "^0.24.0",
+    "typescript": "^5.6.0"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
