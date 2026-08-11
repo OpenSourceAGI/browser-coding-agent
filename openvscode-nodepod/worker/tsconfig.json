@@ -1,0 +1,13 @@
+{
+  // The Worker runs in a different global environment than the browser
+  // bundle, so it gets its own type roots. Merging Workers and DOM lib types
+  // in one program produces conflicting definitions for Request/Response.
+  "extends": "../tsconfig.json",
+  "compilerOptions": {
+    "lib": ["ES2022"],
+    "types": ["@cloudflare/workers-types"]
+  },
+  // The root config excludes this directory; override rather than inherit.
+  "include": ["./**/*.ts"],
+  "exclude": []
+}

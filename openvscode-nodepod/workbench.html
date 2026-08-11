@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="color-scheme" content="dark" />
+    <title>OpenVSCode on Nodepod</title>
+    <link rel="icon" href="data:," />
+  </head>
+  <body>
+    <div id="ovn-boot">
+      <div class="ovn-spinner"></div>
+      <h1>OpenVSCode on Nodepod</h1>
+      <div id="ovn-boot-status">Starting…</div>
+    </div>
+
+    <div id="ovn-workbench" class="ovn-hidden">
+      <div id="ovn-titlebar"></div>
+      <div id="ovn-banner"></div>
+      <div id="ovn-activitybar"></div>
+      <div id="ovn-sidebar"></div>
+      <div id="ovn-editor"></div>
+      <div id="ovn-panel"></div>
+      <!-- Drag handles between parts; VS Code's own sashes only resize views
+           inside a part, not the boundaries between them. -->
+      <div id="ovn-sidebar-sash" class="ovn-sash ovn-sash-v"></div>
+      <div id="ovn-panel-sash" class="ovn-sash ovn-sash-h"></div>
+      <div id="ovn-auxiliarybar"></div>
+      <div id="ovn-statusbar"></div>
+    </div>
+
+    <script type="module" src="/src/workbench/entry.ts"></script>
+  </body>
+</html>

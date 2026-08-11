@@ -1,0 +1,49 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "openvscode-nodepod",
+  "main": "worker/index.ts",
+  "compatibility_date": "2026-06-11",
+  "compatibility_flags": ["nodejs_compat"],
+
+  "assets": {
+    // Produced by `npm run build`: the vinext client build plus the
+    // separately built workbench under /workbench/.
+    "directory": "dist/client",
+    "not_found_handling": "none",
+    "binding": "ASSETS"
+  },
+
+  "vars": {
+    // The Sandbox SDK removed its WebSocket/HTTP transports; RPC is the
+    // supported one.
+    "SANDBOX_TRANSPORT": "rpc"
+  },
+
+  // Everything below exists only for the optional container terminal. Remove
+  // this block and the IDE still runs — it just loses the "Cloudflare
+  // Sandbox" terminal profile.
+  "containers": [
+    {
+      "class_name": "Sandbox",
+      "image": "./Dockerfile",
+      "max_instances": 10,
+      "instance_type": "standard"
+    }
+  ],
+
+  "durable_objects": {
+    "bindings": [
+      {
+        "class_name": "Sandbox",
+        "name": "Sandbox"
+      }
+    ]
+  },
+
+  "migrations": [
+    {
+      "tag": "v1",
+      "new_sqlite_classes": ["Sandbox"]
+    }
+  ]
+}
