@@ -1,0 +1,12 @@
+node_modules/
+dist/
+.wrangler/
+.vinext/
+.next/
+
+# Built by `npm run build:workbench` — 22 MB of VS Code, regenerated from source.
+public/workbench/
+
+# Smoke-test output
+smoke.png
+*.log

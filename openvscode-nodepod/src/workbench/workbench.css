@@ -1,0 +1,180 @@
+/*
+ * The page shell around VS Code's parts.
+ *
+ * VS Code positions everything inside a part absolutely, so each container
+ * needs to be a positioned block with a real size. The grid below is the only
+ * layout decision this file makes; the workbench does the rest.
+ */
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: #1f1f1f;
+  color: #cccccc;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Ubuntu, sans-serif;
+}
+
+/*
+ * Track sizes are explicit on purpose. During bootstrap the views override
+ * lays every part out at 9999x9999 to force a first render, so any track
+ * sized by content (`min-content`/`auto`) inherits that 9999 and squeezes the
+ * editor to zero width.
+ */
+#ovn-workbench {
+  display: grid;
+  width: 100vw;
+  height: 100vh;
+  grid-template-areas:
+    "titlebar titlebar titlebar titlebar"
+    "banner   banner   banner   banner"
+    "activity sidebar  editor   auxbar"
+    "activity sidebar  panel    auxbar"
+    "status   status   status   status";
+  grid-template-columns:
+    var(--ovn-activitybar-width, 48px)
+    var(--ovn-sidebar-width, 300px)
+    minmax(0, 1fr)
+    var(--ovn-auxiliarybar-width, 0px);
+  grid-template-rows:
+    var(--ovn-titlebar-height, 0px)
+    var(--ovn-banner-height, 0px)
+    minmax(0, 2fr)
+    var(--ovn-panel-height, 300px)
+    var(--ovn-statusbar-height, 0px);
+}
+
+#ovn-titlebar {
+  grid-area: titlebar;
+}
+#ovn-banner {
+  grid-area: banner;
+}
+#ovn-activitybar {
+  grid-area: activity;
+}
+#ovn-sidebar {
+  grid-area: sidebar;
+}
+#ovn-editor {
+  grid-area: editor;
+  /* Without an explicit minimum the editor grows to fit its content and the
+     panel below it gets squeezed to nothing. */
+  min-width: 0;
+  min-height: 0;
+}
+#ovn-panel {
+  grid-area: panel;
+  min-width: 0;
+  min-height: 0;
+}
+#ovn-auxiliarybar {
+  grid-area: auxbar;
+}
+#ovn-statusbar {
+  grid-area: status;
+}
+
+#ovn-workbench > div {
+  position: relative;
+  overflow: hidden;
+}
+
+/* ---- resize handles ---- */
+
+.ovn-sash {
+  position: absolute;
+  z-index: 5;
+  /* Sits on the boundary rather than beside it, so the whole 8px strip is a
+     grab target without stealing space from either part. */
+  background: transparent;
+}
+
+.ovn-sash:hover,
+.ovn-sash:active {
+  background: #0078d4;
+}
+
+.ovn-sash-v {
+  width: 8px;
+  top: calc(var(--ovn-titlebar-height, 0px) + var(--ovn-banner-height, 0px));
+  bottom: var(--ovn-statusbar-height, 0px);
+  left: calc(
+    var(--ovn-activitybar-width, 48px) + var(--ovn-sidebar-width, 300px) - 4px
+  );
+  cursor: col-resize;
+}
+
+.ovn-sash-h {
+  height: 8px;
+  left: calc(var(--ovn-activitybar-width, 48px) + var(--ovn-sidebar-width, 300px));
+  right: var(--ovn-auxiliarybar-width, 0px);
+  bottom: calc(var(--ovn-statusbar-height, 0px) + var(--ovn-panel-height, 280px) - 4px);
+  cursor: row-resize;
+}
+
+/* A collapsed part has no boundary to drag. */
+#ovn-workbench[style*="--ovn-sidebar-width: 0px"] .ovn-sash-v,
+#ovn-workbench[style*="--ovn-panel-height: 0px"] .ovn-sash-h {
+  display: none;
+}
+
+.ovn-hidden {
+  display: none !important;
+}
+
+/* ---- boot splash ---- */
+
+#ovn-boot {
+  position: fixed;
+  inset: 0;
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  background: #1f1f1f;
+  padding: 24px;
+  box-sizing: border-box;
+}
+
+#ovn-boot .ovn-spinner {
+  width: 26px;
+  height: 26px;
+  border: 3px solid #3c3c3c;
+  border-top-color: #0078d4;
+  border-radius: 50%;
+  animation: ovn-spin 0.8s linear infinite;
+}
+
+#ovn-boot h1 {
+  font-size: 15px;
+  font-weight: 600;
+  margin: 0;
+}
+
+#ovn-boot-status {
+  font-size: 13px;
+  color: #9d9d9d;
+}
+
+#ovn-boot .ovn-error {
+  max-width: 90ch;
+  max-height: 60vh;
+  overflow: auto;
+  white-space: pre-wrap;
+  color: #f48771;
+  font-family: "Cascadia Code", Consolas, monospace;
+  font-size: 12px;
+  text-align: left;
+}
+
+@keyframes ovn-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
