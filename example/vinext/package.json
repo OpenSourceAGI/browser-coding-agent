@@ -14,7 +14,7 @@
     "type-check": "tsc --noEmit && tsc --noEmit -p worker/tsconfig.json"
   },
   "dependencies": {
-    "@opensourceagi/opends-code": "^0.1.0",
+    "@opensourceagi/opends-code": "file:../..",
     "@scelar/nodepod": "^1.9.20",
     "react": "^19.2.7",
     "react-dom": "^19.2.7"

@@ -12,7 +12,7 @@ import { MainContext, MainThreadTaskShape, ExtHostTaskShape } from 'vs/workbench
 import * as types from 'vs/workbench/api/common/extHostTypes';
 import { IExtHostWorkspaceProvider, IExtHostWorkspace } from 'vs/workbench/api/common/extHostWorkspace';
 import type * as vscode from 'vscode';
-import * as tasks from '../common/shared/tasks';
+import * as tasks from './shared/tasks';
 import { IExtHostDocumentsAndEditors } from 'vs/workbench/api/common/extHostDocumentsAndEditors';
 import { IExtHostConfiguration } from 'vs/workbench/api/common/extHostConfiguration';
 import { CancellationToken } from 'vs/base/common/cancellation';

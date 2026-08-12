@@ -110,6 +110,14 @@ The claim "a container is only created when a user opens a cloud terminal" is en
 
 That is checkable in review: grep for `sandbox` in the import graph of the file routes and you should find nothing.
 
+## The full editor is `exposePort`, not a reverse proxy
+
+`openEditor()` in `server/sandbox.ts` starts the `openvscode-server` binary already baked into the sandbox image (idempotently — a `pgrep` guards against starting a second one on a warm container) and calls `sandbox.exposePort()`, the Sandbox SDK's public preview URL. That URL *is* the container's own origin.
+
+The alternative — reverse-proxying `openvscode-server`'s own HTTP traffic through our router at a sub-path like `/sandbox/editor/*` — was deliberately not built. `openvscode-server` is itself a full SPA with its own asset manifest, its own WebSocket (the remote extension host protocol), and its own idea of what root-relative URLs mean; getting all of that right under a rewritten path is real reverse-proxy work; `exposePort` sidesteps it entirely; the served page's absolute URLs already resolve correctly. The trade-off: extensions installed inside that editor live in the container's own filesystem, not the R2-backed workspace, so they don't survive the container going cold (documented in the README's known limitations).
+
+Authentication for that URL follows the same shape as the terminal ticket: `openvscode-server --connection-token <token>` is started with `token = HMAC-SHA256(ticketSecret, "editor:" + sandboxId)`, computed with the same `sign()` helper `mintTicket`/`verifyTicket` use below, and appended as `?tkn=` on the URL handed back to the client — `openvscode-server`'s own connection-token flow reads that query param on first load. It is deterministic rather than stored, so no new state needs persisting and rotating `ticketSecret` invalidates it exactly like every outstanding WS ticket.
+
 ## Authentication seam
 
 `authorize(request) => AuthContext | null` is the entire contract. It runs before every storage and sandbox route. `userId` becomes the R2 key prefix, and `fs-routes.ts` `encodeURIComponent`s it so a userId containing `/` cannot escape its own prefix.
@@ -149,7 +157,7 @@ The workspace name lives in the URI *authority*, not the path, specifically so `
 
 ## What this cannot do
 
-- **Node extensions.** Only web extensions activate. Same constraint as vscode.dev.
-- **Native modules in the browser terminal.** Nodepod covers a large surface (fs, http, net, crypto, child_process, …) but a package that needs a real native binding must run in the cloud terminal instead.
+- **Node extensions in the browser workbench.** Only web extensions activate there — same constraint as vscode.dev — even with the best-effort `process`/`Buffer`/`global` shims `extension/src/polyfills.ts` installs into the shared extension host worker for browser bundles that reference them ambiently. A real Node extension host needs a real Node process; opening the full editor in the cloud sandbox (`openEditor()`, above) is that escape hatch.
+- **Native modules in the browser terminal.** Nodepod covers a large surface (fs, http, net, crypto, child_process, …) but a package that needs a real native binding must run in the cloud terminal (or full editor) instead.
 - **Cross-tab collaboration.** One session, one tab. Two tabs on the same `sessionId` each hold their own VFS and will overwrite each other in R2.
 - **Search at ripgrep scale.** The walk is JavaScript over an in-memory tree.

@@ -19,7 +19,7 @@ import { ExtHostDocumentsAndEditors, IExtHostDocumentsAndEditors } from 'vs/work
 import { IDebuggerContribution, IConfig, IDebugAdapter, IDebugAdapterServer, IDebugAdapterExecutable, IAdapterDescriptor, IDebugAdapterImpl, IDebugAdapterNamedPipeServer } from 'vs/workbench/contrib/debug/common/debug';
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { AbstractVariableResolverService } from 'vs/workbench/services/configurationResolver/common/variableResolver';
-import { ExtHostConfigProvider, IExtHostConfiguration } from '../common/extHostConfiguration';
+import { ExtHostConfigProvider, IExtHostConfiguration } from './extHostConfiguration';
 import { convertToVSCPaths, convertToDAPaths, isDebuggerMainContribution } from 'vs/workbench/contrib/debug/common/debugUtils';
 import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
 import { CancellationToken } from 'vs/base/common/cancellation';

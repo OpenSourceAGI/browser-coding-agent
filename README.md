@@ -17,9 +17,11 @@ Browser tab
 │     ▼
 └─ workbench iframe ────── vscode-web (static) + bridge extension
                                 │
-                                └─ "cloud terminal" only ──► /api/opends/sandbox/*
+                                ├─ "cloud terminal" ──────► /api/opends/sandbox/*
+                                └─ "full editor" ──────────► /api/opends/sandbox/editor/*
                                                               └─ Cloudflare Sandbox
-                                                                 (container, on demand)
+                                                                 (container, on demand,
+                                                                  openvscode-server inside)
 ```
 
 ## What you get
@@ -33,7 +35,9 @@ Browser tab
 | **Tasks** | `package.json` scripts as VS Code tasks, executed in the browser shell |
 | **Preview** | Servers started in the terminal are reachable and openable in the Simple Browser |
 | **Persistence** | Debounced incremental sync to R2, off the editing path |
+| **Extensions** | Web extensions from Open VSX, plus best-effort `process`/`Buffer`/`global` polyfills for browser bundles that assume they exist |
 | **Cloud terminal** | Opt-in bash PTY in a Cloudflare Sandbox container, mounting the same workspace |
+| **Full editor (cloud sandbox)** | Opt-in: the real `openvscode-server`, with a genuine Node extension host, opened in a new tab against the same workspace |
 | **Auth** | Not included, on purpose. You supply `authorize(request)` |
 
 ## Install
@@ -232,6 +236,32 @@ export default createOpenDSWorker({
 
 See [`docker/`](./docker) for the image and a reference `wrangler.jsonc`.
 
+### Browser + cloud terminal + full editor
+
+Same `sandbox` config as above. A second command appears in the palette —
+**OpenDS: Open Full Editor in Cloud Sandbox**. Opening it:
+
+1. flushes pending edits to R2 (same as the terminal),
+2. boots (or resumes) the same container,
+3. starts `openvscode-server` inside it — a real Node.js extension host, not
+   a Web Worker — if it is not already running,
+4. exposes its port through the Sandbox SDK's public preview URL and opens it
+   in a new tab.
+
+That gives you the genuine `vscode-reh-web` experience — a real marketplace
+(if the image's `openvscode-server` build is configured with one), native
+modules, debuggers — against the exact same R2-backed workspace, no reverse
+proxy involved: the exposed URL *is* the container's own origin, so
+`openvscode-server` serves its own assets with no path-rewriting needed on our
+side.
+
+`openvscode-server` is started with a per-session connection token derived as
+`HMAC-SHA256(ticketSecret, "editor:" + sandboxId)` — the same secret and
+pattern as the terminal's WebSocket ticket, just deterministic so no extra
+state needs to be stored. Rotating `ticketSecret` invalidates every
+outstanding editor URL along with every terminal ticket. As with the cloud
+terminal, a user who never opens the full editor never causes it to start.
+
 ## Authentication
 
 There is none in this package, and that is deliberate — it is a component, not
@@ -255,8 +285,11 @@ WS handshake, so `/sandbox/start` mints a 60-second HMAC-signed ticket that
 The design and its trade-offs are written up in
 [ARCHITECTURE.md](./ARCHITECTURE.md). The short version:
 
-- **No remote extension host.** Build (or fetch) the browser-only `vscode-web`
-  target, not `vscode-reh-web`. There is no `vscode-server` process anywhere.
+- **No remote extension host in the default path.** Build (or fetch) the
+  browser-only `vscode-web` target, not `vscode-reh-web` — no `vscode-server`
+  process runs unless a user explicitly opens the full editor in the cloud
+  sandbox (see [Modes](#browser--cloud-terminal--full-editor)), which starts a
+  real one on demand.
 - **The bridge is a BroadcastChannel.** The workbench's web extension host runs
   in a *same-origin* iframe as long as `product.json` leaves
   `webEndpointUrlTemplate` unset, so the extension and the host page can share a
@@ -321,8 +354,17 @@ bundles the remote extension host server this architecture does not use.
   unpublished local package needs that package committed as source.
 - **Search is not ripgrep.** It walks the VFS in the browser. Fine for normal
   projects, slower than native on very large ones.
-- **Extensions must be web extensions.** Anything requiring a Node extension
-  host will not activate — the same constraint vscode.dev has.
+- **Extensions still need a Node extension host to be Node extensions.** The
+  browser workbench remains a `vscode-web` target — the polyfills it installs
+  (`process`, `Buffer`, `global`) help browser bundles that reference them
+  ambiently, but native bindings, `child_process`, `net`, or a `main` entry
+  point still need a real extension host process. Open the full editor in the
+  cloud sandbox for those.
+- **Extensions installed inside the full editor are not persisted.** They live
+  in the container's own (ephemeral) filesystem, not the R2-backed workspace,
+  so they are lost the next time the container goes cold. Baking a fixed set
+  into the image, or mounting `~/.openvscode-server` under R2, are both
+  reasonable follow-ups this repo does not implement.
 
 ## License
 

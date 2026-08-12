@@ -1,5 +1,5 @@
 {
-  "name": "@opensourceagi/opends-code",
+  "name": "weditor",
   "version": "0.1.0",
   "description": "OpenVSCode Web that runs entirely client-side on Nodepod polyfills (fs, shell, processes, npm), persists to Cloudflare R2, and can escalate a single terminal into a Cloudflare Sandbox container.",
   "type": "module",
