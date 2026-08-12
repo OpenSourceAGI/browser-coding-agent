@@ -1,42 +1,5 @@
-# Dependencies
 node_modules/
-
-# Build output (included in npm via "files" field, but not tracked in git)
 dist/
-
-# Environment variables
-.env
-.env.local
-.env.*.local
-
-# OS files
-.DS_Store
-Thumbs.db
-Desktop.ini
-
-# Editor files
-.vscode/
-.idea/
-*.swp
-*.swo
-*~
-*.sublime-project
-*.sublime-workspace
-
-# Debug logs
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-pnpm-debug.log*
-
-# TypeScript cache
+extension/dist/
 *.tsbuildinfo
-
-# Test coverage
-coverage/
-
-# Local research / planning notes (Claude Code scratch)
-memory/
-
-# IDE app build output
-out/
+.DS_Store

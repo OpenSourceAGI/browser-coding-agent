@@ -1,312 +1,329 @@
+# @opensourceagi/opends-code
 
-![weditor_logo](https://i.imgur.com/LAvXR6l.png)
+OpenVSCode Web, running **entirely in the browser**.
 
-> **New:** [`opends-code/`](./opends-code) packages this as a reusable Next.js
-> component — OpenVSCode Web running entirely client-side on the Nodepod
-> polyfills, persisting to Cloudflare R2, with an opt-in Cloudflare Sandbox
-> container for a full Linux terminal. It deploys as a single Cloudflare Worker
-> on [vinext](https://github.com/cloudflare/vinext) (Next.js on Vite) — see
-> [`example/vinext/`](./opends-code/example/vinext) — or on any Node host. Start
-> with its [README](./opends-code/README.md) and
-> [ARCHITECTURE](./opends-code/ARCHITECTURE.md).
+The workbench is static. The filesystem, shell, processes and npm are
+[Nodepod](https://github.com/ScelarOrg/Nodepod) polyfills running on the page.
+Files persist to Cloudflare R2. A Docker container is created **only** if a user
+explicitly opens a cloud terminal — never for editing, browsing, searching or
+saving.
 
-# VS Code in Nodepod
+```
+Browser tab
+├─ host page ───────────── Nodepod: VFS · shell · processes · npm
+│     │                        │
+│     │  BroadcastChannel      └─ debounced push ──► /api/opends/fs/* ──► R2
+│     │  (same origin)
+│     ▼
+└─ workbench iframe ────── vscode-web (static) + bridge extension
+                                │
+                                └─ "cloud terminal" only ──► /api/opends/sandbox/*
+                                                              └─ Cloudflare Sandbox
+                                                                 (container, on demand)
+```
 
-[![npm](https://img.shields.io/npm/v/@scelar/nodepod.svg)](https://www.npmjs.com/package/@scelar/nodepod)
-[![license](https://img.shields.io/npm/l/@scelar/nodepod.svg)](./LICENSE)
+## What you get
 
-This repository runs Visual Studio Code inside Nodepod — a Node.js-in-the-browser environment. It provides a browser-hosted VS Code instance powered by Nodepod's virtual filesystem, service worker, and shell. Filesystem, shell, npm packages, HTTP servers, no backend required.
+| | |
+|---|---|
+| **Editor** | The real VS Code workbench — editors, diffs, Git decorations, settings, keybindings, themes, extensions from Open VSX |
+| **Filesystem** | `FileSystemProvider` over an in-browser VFS. Open, save, rename, delete, drag-drop. A save is a `postMessage`, not an HTTP call |
+| **Search** | Quick Open (`Ctrl+P`) and global search (`Ctrl+Shift+F`) via `FileSearchProvider` / `TextSearchProvider` |
+| **Terminal** | Real `node`, `npm`, and shell builtins in the browser. No container, no cold start |
+| **Tasks** | `package.json` scripts as VS Code tasks, executed in the browser shell |
+| **Preview** | Servers started in the terminal are reachable and openable in the Simple Browser |
+| **Persistence** | Debounced incremental sync to R2, off the editing path |
+| **Cloud terminal** | Opt-in bash PTY in a Cloudflare Sandbox container, mounting the same workspace |
+| **Auth** | Not included, on purpose. You supply `authorize(request)` |
+
+## Install
 
 ```bash
-npm install @scelar/nodepod
+npm install @opensourceagi/opends-code @scelar/nodepod
 ```
 
-## Getting started
+Stage the workbench assets (a one-time copy into `public/`):
 
-Nodepod uses a service worker to route preview iframes and virtual HTTP
-servers. It has to be served from your own origin at `/__sw__.js`,
-browsers won't register a SW from `node_modules`.
+```bash
+npx opends-fetch-workbench --out ./public/vscode
+# or: node node_modules/@opensourceagi/opends-code/scripts/fetch-workbench.mjs --out ./public/vscode
+```
 
-Pick the one-liner for your framework:
+Copy the bridge extension next to them:
 
-### Vite
+```bash
+cp -r node_modules/@opensourceagi/opends-code/extension ./public/opends/extension
+```
 
-```typescript
+## Wire it up (Next.js App Router)
+
+**1. Headers** — Nodepod needs `SharedArrayBuffer`, which needs cross-origin isolation.
+
+```js
+// next.config.mjs
+import { openDSHeaders } from "@opensourceagi/opends-code/next";
+export default { async headers() { return openDSHeaders(); } };
+```
+
+**2. Routes** — one catch-all.
+
+```ts
+// app/api/opends/[...path]/route.ts
+import { createOpenDSHandlers } from "@opensourceagi/opends-code/next";
+import { S3Store } from "@opensourceagi/opends-code/server";
+
+export const { GET, POST, PUT, DELETE } = createOpenDSHandlers({
+  authorize: async (request) => {
+    const session = await auth(request);        // your login, untouched
+    return session ? { userId: session.userId } : null;
+  },
+  store: new S3Store({
+    endpoint: `https://${process.env.R2_ACCOUNT_ID}.r2.cloudflarestorage.com`,
+    bucket: process.env.R2_BUCKET!,
+    accessKeyId: process.env.R2_ACCESS_KEY_ID!,
+    secretAccessKey: process.env.R2_SECRET_ACCESS_KEY!,
+  }),
+});
+```
+
+**3. Editor**
+
+```tsx
+"use client";
+import { OpenDSCode } from "@opensourceagi/opends-code/react";
+import { createHttpStorage } from "@opensourceagi/opends-code/storage";
+
+export default function Page({ userId }: { userId: string }) {
+  return (
+    <OpenDSCode
+      config={{
+        sessionId: userId,
+        apiBase: "/api/opends",
+        storage: createHttpStorage({ apiBase: "/api/opends", workspaceId: userId }),
+      }}
+    />
+  );
+}
+```
+
+That is a complete, persistent, multi-user web IDE with no container in the
+picture. A working copy of these three files is in [`example/`](./example).
+
+## Wire it up (vinext on Cloudflare Workers)
+
+[vinext](https://github.com/cloudflare/vinext) runs the same App Router code on
+Vite and deploys it as a Worker. Three things change, and all three come from
+the same fact: **the Worker is not the only thing answering requests.**
+
+**1. Plugin** — isolates the dev server and writes the `_headers` that isolates
+deployed assets.
+
+```ts
 // vite.config.ts
-import { defineConfig } from 'vite';
-import nodepod from '@scelar/nodepod/vite';
+import { cloudflare } from "@cloudflare/vite-plugin";
+import { opendsVinext } from "@opensourceagi/opends-code/vinext";
+import { defineConfig } from "vite";
+import vinext from "vinext";
 
 export default defineConfig({
-  plugins: [nodepod()],
+  plugins: [
+    vinext(),
+    opendsVinext(),
+    cloudflare({ viteEnvironment: { name: "rsc", childEnvironments: ["ssr"] } }),
+  ],
 });
 ```
 
-### Next.js (App Router, works Next 13 through 16)
+**2. Worker entry** — OpenDS routes in front of the app router. Point `main` in
+`wrangler.jsonc` at it; vinext uses `worker/index.ts` instead of its own entry
+when it exists.
 
-```typescript
-// app/__sw__.js/route.ts
-export { GET } from '@scelar/nodepod/next';
-```
+```ts
+// worker/index.ts
+import { createOpenDSVinextWorker } from "@opensourceagi/opends-code/vinext";
+import handler from "vinext/server/app-router-entry";
+import { Sandbox, getSandbox } from "@cloudflare/sandbox";
 
-If you already have a `proxy.ts` (Next 16+) or `middleware.ts` (Next <=15),
-compose `nodepodProxy` / `nodepodMiddleware` alongside your own handler
-instead. See [docs/sw-setup.md](./docs/sw-setup.md).
-
-### Any framework with a Fetch-style handler (Hono, Bun, Cloudflare, Elysia, etc.)
-
-```typescript
-import { serveSW } from '@scelar/nodepod/server';
-
-app.get('/__sw__.js', () => serveSW());
-```
-
-### Express / Fastify / bare `http`
-
-```typescript
-import { serveSWNode } from '@scelar/nodepod/server';
-
-app.get('/__sw__.js', async (_req, res) => {
-  const { body, headers } = await serveSWNode();
-  for (const [k, v] of Object.entries(headers)) res.setHeader(k, v);
-  res.status(200).send(body);
+export { Sandbox };
+export default createOpenDSVinextWorker({
+  handler,                                       // fall-through: the Next app
+  authorize: (request, env) => verifySession(request, env),
+  getSandbox,                                    // omit for no cloud terminals
 });
 ```
 
-### Static host (copy the file)
+`env` reaches `authorize` because session lookups usually need a binding, and
+the R2 store is built from `env.WORKSPACES` — a route handler never sees either.
+Prefer a catch-all route anyway? `createOpenDSVinextHandlers({ env: () => env })`
+takes `env` from `cloudflare:workers` and resolves it per request.
 
-No server code? Copy the file once into your public directory:
+**3. Service worker** — copy it into `public/`, do not serve it from the Worker:
 
 ```bash
 cp node_modules/@scelar/nodepod/dist/__sw__.js public/__sw__.js
 ```
 
-See [docs/sw-setup.md](./docs/sw-setup.md) for the full story and how to
-customise the URL.
+`serveSW()` locates that file with `node:fs` and `import.meta.url`, neither of
+which survives the workerd bundle; it throws at request time. As a static asset
+it is served by the asset layer, with the `Service-Worker-Allowed` rule the
+plugin writes.
 
-## Usage
+A complete, deployable app is in [`example/vinext/`](./example/vinext).
 
-```typescript
-import { Nodepod } from '@scelar/nodepod';
+### Why isolation takes three mechanisms there
 
-const nodepod = await Nodepod.boot({
-  files: {
-    '/index.js': 'console.log("Hello from the browser!")',
-  },
+`SharedArrayBuffer` requires cross-origin isolation, and isolation is a property
+of the **whole origin** — one un-isolated document loses it for everything. On
+Workers no single mechanism covers every response:
+
+| | Covers | Comes from |
+|---|---|---|
+| `_headers` | static assets — the asset layer serves them without ever invoking the Worker | `opendsVinext()` |
+| Worker wrapper | app pages, RSC payloads, OpenDS routes | `createOpenDSVinextWorker()` |
+| `next.config` `headers()` | the same app off-Workers (`vinext start`, Node, Vercel) | `openDSHeaders()` |
+
+Miss the first and the workbench bundle loads un-isolated, `SharedArrayBuffer`
+disappears, and the runtime drops to its slower path — which reads as "the
+editor is just slow", not as a configuration error.
+
+## Modes
+
+### Browser-only (the default)
+
+Everything runs on the page. No `apiBase`, no `storage`, no server:
+
+```tsx
+<OpenDSCode config={{ initialFiles: { "/index.js": "console.log(1)" } }} />
+```
+
+Instant boot, works offline, workspace is lost on reload. Good for playgrounds,
+docs, and reproductions.
+
+### Browser + R2 persistence
+
+Add `storage` and the routes. Edits land in the VFS immediately and are pushed
+after a quiet period (1.5s by default), so typing never waits on the network.
+The status bar shows `saved` / `n pending` / `save failed`.
+
+### Browser + cloud terminal
+
+Add `sandbox: { enabled: true }` on the client and a `sandbox` config on the
+server. A second terminal profile appears — **bash (cloud sandbox)**. Opening it:
+
+1. flushes pending edits to R2,
+2. boots (or resumes) a container that mounts the same bucket at `/workspace`,
+3. proxies a real PTY over a WebSocket into the VS Code terminal.
+
+So the shell operates on the files you are looking at, with a full Linux
+toolchain — native modules, debuggers, ripgrep — and openvscode-server itself is
+in the image. Users who never open one never cause a container to exist.
+
+```ts
+// Cloudflare Worker
+import { createOpenDSWorker } from "@opensourceagi/opends-code/worker";
+import { Sandbox, getSandbox } from "@cloudflare/sandbox";
+
+export { Sandbox };
+export default createOpenDSWorker({
+  authorize: (request) => verifySession(request),
+  getSandbox,
 });
-
-const proc = await nodepod.spawn('node', ['index.js']);
-proc.on('output', (text) => console.log(text));
-await proc.completion;
 ```
 
-If the service worker isn't reachable at `/__sw__.js`, `boot()` throws a
-`NodepodSWSetupError` with the one-liner for your framework. Pass
-`{ serviceWorker: false }` to skip SW setup entirely (SSR, Node tests).
+See [`docker/`](./docker) for the image and a reference `wrangler.jsonc`.
 
-### Terminal
+## Authentication
 
-Plug in xterm.js for an interactive shell:
+There is none in this package, and that is deliberate — it is a component, not
+an application. The single seam is:
 
-```typescript
-import { Terminal } from '@xterm/xterm';
-import { FitAddon } from '@xterm/addon-fit';
-
-const terminal = nodepod.createTerminal({ Terminal, FitAddon });
-terminal.attach('#terminal-container');
+```ts
+authorize(request: Request): AuthContext | null | Promise<AuthContext | null>
 ```
 
-### npm packages
+Return `{ userId }` (optionally `workspaceId`, `readOnly`) or `null` for a 401.
+`userId` becomes the R2 key prefix, so it must identify exactly one tenant.
+Cookies flow automatically (`credentials: "include"`); for bearer tokens pass
+`headers` in the client config.
 
-```typescript
-await nodepod.install(['express']);
-const proc = await nodepod.spawn('node', ['server.js']);
+The one exception is the terminal WebSocket: browsers cannot set headers on a
+WS handshake, so `/sandbox/start` mints a 60-second HMAC-signed ticket that
+`/sandbox/ws` verifies.
+
+## Architecture
+
+The design and its trade-offs are written up in
+[ARCHITECTURE.md](./ARCHITECTURE.md). The short version:
+
+- **No remote extension host.** Build (or fetch) the browser-only `vscode-web`
+  target, not `vscode-reh-web`. There is no `vscode-server` process anywhere.
+- **The bridge is a BroadcastChannel.** The workbench's web extension host runs
+  in a *same-origin* iframe as long as `product.json` leaves
+  `webEndpointUrlTemplate` unset, so the extension and the host page can share a
+  channel directly.
+- **The extension knows nothing about Nodepod; the runtime knows nothing about
+  VS Code.** The wire protocol in [`src/protocol`](./src/protocol) is the only
+  coupling, and it is fully typed in both directions.
+- **The Sandbox SDK is imported from exactly one module.** `src/server/sandbox.ts`.
+  Nothing on the file-serving path can reach it — that is the enforcement
+  mechanism for "no container unless you ask for one", and it is checkable in
+  code review.
+
+## Package layout
+
+```
+src/protocol/     wire contract + RPC channel (shared by both halves)
+src/client/       Nodepod runtime, fs, search, terminals, session
+src/storage/      StorageAdapter, sync engine, HTTP + memory adapters
+src/workbench/    product.json + workbench HTML + iframe mount
+src/react/        <OpenDSCode /> and useOpenDSSession()
+src/server/       object stores (R2 binding + S3), routes, sandbox
+src/next/         App Router adapter and header helpers
+src/worker/       Cloudflare Worker entry + env/bindings resolution
+src/vinext/       vinext-on-Workers entry, route handlers, Vite plugin
+extension/        the VS Code bridge extension (esbuild -> dist/extension.js)
+docker/           container image for the optional cloud terminal
+scripts/          workbench staging + openvscode fork integration
 ```
 
-### HTTP servers
-
-Works with Express, Hono, Vite, and anything that calls `listen()`:
-
-```typescript
-const nodepod = await Nodepod.boot({
-  files: {
-    '/server.js': `
-      const express = require('express');
-      const app = express();
-      app.get('/', (req, res) => res.json({ ok: true }));
-      app.listen(3000);
-    `,
-  },
-});
-
-await nodepod.install(['express']);
-await nodepod.spawn('node', ['server.js']);
-
-const response = await nodepod.request(3000, 'GET', '/');
-console.log(response.body); // { ok: true }
-```
-
-### Snapshots
-
-Save and restore the filesystem:
-
-```typescript
-const snapshot = await nodepod.snapshot();
-// ... later
-await nodepod.restore(snapshot);
-```
-
-## API
-
-### `Nodepod.boot(options?)`
-
-| Option | Type | Description |
-|--------|------|-------------|
-| `files` | `Record<string, string \| Uint8Array>` | Initial files |
-| `workdir` | `string` | Working directory (default `"/"`) |
-| `env` | `Record<string, string>` | Environment variables |
-| `swUrl` | `string` | Service Worker URL for preview iframes |
-| `watermark` | `boolean` | Show nodepod badge in previews (default `true`) |
-| `onServerReady` | `(port, url) => void` | Called when a virtual server starts |
-| `allowedFetchDomains` | `string[] \| null` | Extra CORS proxy domains. `null` = allow all |
-
-### Instance methods
-
-| Method | Description |
-|--------|-------------|
-| `spawn(cmd, args?, opts?)` | Run a command |
-| `install(packages)` | Install npm packages |
-| `createTerminal(opts)` | Create an xterm.js terminal |
-| `fs.readFile(path, enc?)` | Read a file |
-| `fs.writeFile(path, data)` | Write a file |
-| `fs.readdir(path)` | List directory |
-| `fs.stat(path)` | File stats |
-| `fs.mkdir(path, opts?)` | Create directory |
-| `fs.rm(path, opts?)` | Remove file/directory |
-| `snapshot()` | Capture filesystem state |
-| `restore(snapshot)` | Restore from snapshot |
-| `request(port, method, path)` | Send request to virtual server |
-| `port(num)` | Get preview URL for a port |
-| `setPreviewScript(js)` | Inject JS into preview iframes |
-| `clearPreviewScript()` | Remove injected script |
-
-### Process events
-
-`spawn()` returns a `NodepodProcess`:
-
-```typescript
-proc.on('output', (text) => { }); // stdout
-proc.on('error', (text) => { });  // stderr
-proc.on('exit', (code) => { });   // exit code
-await proc.completion;             // wait for exit
-```
-
-## Polyfills
-
-**Full:** fs, path, events, stream, buffer, process, http, https, net, crypto, zlib, url, querystring, util, os, tty, child_process, assert, readline, module, timers, string_decoder, perf_hooks, constants, punycode
-
-**Stubs:** dns, worker_threads, vm, v8, tls, dgram, cluster, http2, inspector, domain, diagnostics_channel, async_hooks
-
-**In development:** Native WASI/WASM loading for napi-rs based packages (rolldown, lightningcss, etc.)
-
-## Why nodepod?
-
-We built nodepod for [Scelar](https://scelar.com), an AI app builder that takes you from idea to production in minutes. Scelar needed a way to run real Node.js code directly in the browser so users could build, preview, and interact with their apps instantly without waiting for remote servers to spin up. No containers, no cold starts, no infrastructure to manage.
-
-We open-sourced it because we think running Node in the browser shouldn't be a proprietary black box. If you're building a web IDE, coding playground, AI dev tool, or anything that needs server-side JS in the browser, nodepod is for you.
-
-## Development
+## Building from source
 
 ```bash
-git clone https://github.com/ScelarOrg/Nodepod.git
-cd Nodepod
 npm install
-npm run build:publish   # build library + types
-npm test                # run tests
+npm run build       # library (tsc) + extension (esbuild)
+npm run type-check  # library, and the extension against real @types/vscode
+npm test            # end-to-end smoke test over the built dist/
 ```
 
-### Publishing a new version
+`npm test` drives the built package through a real `BroadcastChannel` with a
+fake Nodepod runtime, exercising exactly what the extension does: fs round
+trips, error-code translation, watchers, both search providers, the terminal
+path and the debounced sync.
+
+To bake the bridge into an openvscode fork instead of loading it at runtime:
 
 ```bash
-npm version patch       # or minor / major
-npm publish             # auto-builds before publishing
-git push && git push --tags
+node scripts/install-into-openvscode.mjs --repo ../openvscode
 ```
 
-## Web IDE (VS Code in Nodepod)
+Then build a `vscode-web-*` gulp target — **not** `vscode-reh-web-*`, which
+bundles the remote extension host server this architecture does not use.
 
-This repo ships an OpenVSCode-inspired web IDE built entirely on Nodepod:
-file explorer, tabbed editor, xterm.js terminal, and a live preview pane,
-all backed by the in-browser runtime. See
-[docs/architecture-ide.md](./docs/architecture-ide.md) for the full
-architecture and data flow.
+## Known limitations
 
-```bash
-npm run dev:ide            # develop at http://localhost:5173/vscode.html
-npm run build:ide          # build the app into out/ (vscode.html + __sw__.js)
-npm run run:vscode-nodepod # serve out/ with COOP/COEP + SW headers
-```
-
-The IDE kit is also published as a subpath export for embedding in your
-own app:
-
-```typescript
-import { Nodepod } from '@scelar/nodepod';
-import { NodepodIde, PreviewManager, buildBootOptions } from '@scelar/nodepod/ide';
-import { Terminal } from '@xterm/xterm';
-import { FitAddon } from '@xterm/addon-fit';
-
-const previews = new PreviewManager();
-const nodepod = await Nodepod.boot(
-  buildBootOptions({ files: { '/index.js': "console.log('hi')" } }, previews),
-);
-previews.bindHost(nodepod);
-
-const ide = new NodepodIde({ host: nodepod, previews, xterm: { Terminal, FitAddon } });
-ide.mount(document.getElementById('app'));
-```
-
-The data layer is usable without the UI too: `NodepodFileSystem` (repository
-layer over `nodepod.fs`), `ProcessRunner` (around `nodepod.spawn`), and
-`PreviewManager` (around `nodepod.port` / `setPreviewScript`).
-
-### Contributing
-
-Contributions are really appreciated. This is a big project and it's hard to maintain and push updates on my own. If you want to help out, feel free to open a PR.
-
-Note that nodepod is not my main focus, [Scelar](https://scelar.com) is. I work on nodepod when I have time for it, so responses to issues and PRs might take a bit.
-
-Before opening a PR, make sure these pass:
-
-```bash
-npm run type-check      # 0 TypeScript errors
-npm run build:publish   # builds cleanly
-npm test                # tests pass
-```
-
-**Code style:**
-
-- Files are **kebab-case** (`shell-parser.ts`, `memory-volume.ts`). Polyfills match their Node.js module name (`fs.ts`, `crypto.ts`).
-- Classes and types are **PascalCase** (`MemoryVolume`, `ShellResult`). Functions and variables are **camelCase**.
-- Private properties and internal helpers use a **leading underscore** (`_registry`, `_ensureSlot()`).
-- Use **named exports**. Default exports only for polyfills that need to match Node's `module.exports` shape.
-
-**Commit messages** follow conventional commits:
-
-```
-feat: add readline support
-fix: resolve path edge case in fs.watch
-chore: bump dependencies
-```
-
-**If you're writing a polyfill:**
-
-- Polyfill files live in `src/polyfills/` and must be named after the Node.js module they replace.
-- EventEmitter methods must use `_reg()` for lazy init, never access `this._registry` directly.
-- Polyfills registered in `CORE_MODULES` must not use `async` functions.
-- ESM-to-CJS replacement strings must include trailing semicolons.
+- **Prefix-scoped R2 mounts** are not supported by the Sandbox SDK yet, so the
+  cloud terminal mounts the whole bucket and symlinks the caller's prefix to
+  `/workspace`. That hides other tenants from casual browsing but is not a hard
+  boundary — a user who deliberately walks into the mount root can read other
+  prefixes. Use a bucket per tenant if that matters to you.
+- **`node_modules` is never synced.** It is reinstalled from `package.json` on
+  demand, which keeps hydration fast. A workspace that depends on an
+  unpublished local package needs that package committed as source.
+- **Search is not ripgrep.** It walks the VFS in the browser. Fine for normal
+  projects, slower than native on very large ones.
+- **Extensions must be web extensions.** Anything requiring a Node extension
+  host will not activate — the same constraint vscode.dev has.
 
 ## License
 
-[MIT + Commons Clause](./LICENSE). Use it in anything, just don't resell nodepod itself.
-
-Built by [@R1ck404](https://github.com/R1ck404), part of [Scelar](https://scelar.com).
+MIT.
