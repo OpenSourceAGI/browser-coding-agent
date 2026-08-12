@@ -1,7 +1,7 @@
 {
   "name": "opends-bridge",
   "displayName": "OpenDS Code Bridge",
-  "description": "Backs the workspace with an in-browser Node.js runtime, persists it to R2, and can escalate a terminal into a Cloudflare Sandbox container.",
+  "description": "Backs the workspace with an in-browser Node.js runtime, persists it to R2, and can escalate a terminal or the full editor (with a real Node extension host) into a Cloudflare Sandbox container.",
   "version": "0.1.0",
   "publisher": "opensourceagi",
   "license": "MIT",
@@ -65,6 +65,11 @@
       {
         "command": "opends.openSandboxTerminal",
         "title": "OpenDS: Open Cloud Sandbox Terminal",
+        "category": "OpenDS"
+      },
+      {
+        "command": "opends.openFullEditor",
+        "title": "OpenDS: Open Full Editor in Cloud Sandbox",
         "category": "OpenDS"
       },
       {
@@ -133,6 +138,10 @@
         {
           "command": "opends.openSandboxTerminal",
           "when": "config.opends.sandboxAvailable"
+        },
+        {
+          "command": "opends.openFullEditor",
+          "when": "config.opends.sandboxAvailable"
         }
       ]
     }
@@ -140,6 +149,9 @@
   "scripts": {
     "build": "node build.mjs",
     "watch": "node build.mjs --watch"
+  },
+  "dependencies": {
+    "buffer": "^6.0.3"
   },
   "devDependencies": {
     "@types/vscode": "^1.88.0",

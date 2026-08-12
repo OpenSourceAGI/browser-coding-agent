@@ -1,12 +1,17 @@
-# Container image for the *optional* cloud terminal.
+# Container image for the *optional* cloud terminal and full editor.
 #
 # Nothing in the editor needs this image. It is pulled the first time a user
-# opens a "bash (cloud sandbox)" terminal, and stays cold for every user who
-# only edits, browses, searches and saves.
+# opens a "bash (cloud sandbox)" terminal or "Open Full Editor in Cloud
+# Sandbox", and stays cold for every user who only edits, browses, searches
+# and saves.
 #
 # It carries a full openvscode-server so the same workspace can also be opened
-# with a real Node.js toolchain (native modules, debuggers, ripgrep) when the
-# browser runtime is not enough.
+# with a real Node.js extension host (native modules, debuggers, ripgrep, real
+# marketplace extensions) when the browser-only workbench is not enough.
+# `openEditor()` in `src/server/sandbox.ts` starts it on demand and exposes it
+# through the Sandbox SDK's public preview URL; `procps` (installed above) is
+# what lets that call check whether a server is already running via `pgrep`
+# before starting a second one.
 
 FROM docker.io/cloudflare/sandbox:0.12.5
 
@@ -16,7 +21,7 @@ ARG TARGETARCH=x64
 USER root
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
-      ca-certificates curl git openssh-client ripgrep python3 build-essential \
+      ca-certificates curl git openssh-client ripgrep python3 build-essential procps \
     && rm -rf /var/lib/apt/lists/*
 
 # openvscode-server: used for `openvscode-server --host 0.0.0.0` inside the

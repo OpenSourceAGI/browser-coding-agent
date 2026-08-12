@@ -238,6 +238,9 @@ export interface BridgeRequests {
   "sync.pull": void;
 
   "preview.list": void;
+
+  /** Boots (or resumes) the full `openvscode-server` inside the sandbox container. */
+  "sandbox.openEditor": void;
 }
 
 export interface BridgeResponses {
@@ -271,6 +274,8 @@ export interface BridgeResponses {
   "sync.pull": SyncStatusDTO;
 
   "preview.list": PreviewPortDTO[];
+
+  "sandbox.openEditor": { url: string };
 }
 
 export type BridgeMethod = keyof BridgeRequests;

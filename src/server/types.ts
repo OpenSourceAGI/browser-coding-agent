@@ -46,6 +46,20 @@ export interface SandboxServerConfig {
    * hosts and point `start()` at a Worker that can.
    */
   terminal?: (request: Request) => Promise<Response>;
+
+  /**
+   * Boots (or resumes) `openvscode-server` inside the same container and
+   * returns a URL to it — a real Node extension host, unlike the browser-only
+   * workbench. Omit to keep the sandbox terminal-only.
+   */
+  openEditor?: (
+    context: AuthContext,
+    options: SandboxOpenEditorOptions,
+  ) => Promise<{ url: string }>;
+}
+
+export interface SandboxOpenEditorOptions {
+  request: Request;
 }
 
 export interface SandboxStartOptions {

@@ -2,6 +2,7 @@ import * as vscode from "vscode";
 import { BridgeClient } from "../../src/protocol/channel.js";
 import type { SyncStatusDTO } from "../../src/protocol/messages.js";
 import { OpenDSFileSystemProvider } from "./fs-provider.js";
+import { installNodeCompatPolyfills } from "./polyfills.js";
 import { registerSearchProviders } from "./search-providers.js";
 import { registerTaskProvider } from "./tasks.js";
 import { openTerminal, registerTerminalProfiles } from "./terminal.js";
@@ -9,6 +10,8 @@ import { openTerminal, registerTerminalProfiles } from "./terminal.js";
 let client: BridgeClient | undefined;
 
 export function activate(context: vscode.ExtensionContext): void {
+  installNodeCompatPolyfills();
+
   const config = vscode.workspace.getConfiguration("opends");
   const sessionId = config.get<string>("sessionId", "");
   const scheme = config.get<string>("scheme", "opends");
@@ -119,6 +122,31 @@ function registerCommands(
       return;
     }
     openTerminal(bridge, "sandbox");
+  });
+
+  register("opends.openFullEditor", async () => {
+    if (!sandboxAvailable) {
+      void vscode.window.showWarningMessage(
+        "OpenDS Code: no cloud sandbox is configured for this session.",
+      );
+      return;
+    }
+    try {
+      const { url } = await vscode.window.withProgress(
+        {
+          location: vscode.ProgressLocation.Notification,
+          title: "Starting full editor in cloud sandbox…",
+        },
+        // Cold container boot is slow the first time — matches the sandbox
+        // terminal's timeout rather than the default 30s.
+        () => bridge.request("sandbox.openEditor", undefined, { timeoutMs: 180_000 }),
+      );
+      await vscode.env.openExternal(vscode.Uri.parse(url));
+    } catch (error) {
+      void vscode.window.showErrorMessage(
+        `OpenDS Code: could not start the full editor — ${message(error)}`,
+      );
+    }
   });
 
   register("opends.syncNow", () =>

@@ -25,13 +25,14 @@ export type OpenDSConfigResolver = (
  * the same function; `src/next` is a thin adapter over this.
  *
  * Routes (relative to `basePath`):
- *   GET    /workbench      the editor document (no auth: it contains no data)
- *   GET    /fs/list        manifest of the caller's workspace
- *   GET    /fs/read        one object
- *   PUT    /fs/write       one object
- *   POST   /fs/batch       many objects in a single request
- *   DELETE /fs/delete      one object or prefix
- *   POST   /sandbox/start  boot a container and mint a terminal WebSocket URL
+ *   GET    /workbench            - the editor document (no auth: it contains no data)
+ *   GET    /fs/list              - manifest of the caller's workspace
+ *   GET    /fs/read              - one object
+ *   PUT    /fs/write             - one object
+ *   POST   /fs/batch             - many objects in a single request
+ *   DELETE /fs/delete            - one object or prefix
+ *   POST   /sandbox/start        - boot a container and mint a terminal WebSocket URL
+ *   POST   /sandbox/editor/start - boot the full openvscode-server in the container
  */
 export function createOpenDSRouter(
   config: OpenDSServerConfig | OpenDSConfigResolver,
@@ -104,6 +105,10 @@ export function createOpenDSRouter(
       return startSandbox(request, context, config);
     }
 
+    if (route === "/sandbox/editor/start" && request.method === "POST") {
+      return startSandboxEditor(request, context, config);
+    }
+
     return new Response("not found", { status: 404 });
   };
 }
@@ -166,6 +171,32 @@ async function startSandbox(
       ...(body.terminalId ? { terminalId: body.terminalId } : {}),
       request,
     });
+    return json(result);
+  } catch (error) {
+    return json(
+      { error: error instanceof Error ? error.message : String(error) },
+      502,
+    );
+  }
+}
+
+async function startSandboxEditor(
+  request: Request,
+  context: AuthContext,
+  config: OpenDSServerConfig,
+): Promise<Response> {
+  if (!config.sandbox?.enabled) {
+    return json({ error: "sandbox is not enabled for this deployment" }, 501);
+  }
+  if (!config.sandbox.openEditor) {
+    return json(
+      { error: "the full editor is not available for this deployment" },
+      501,
+    );
+  }
+
+  try {
+    const result = await config.sandbox.openEditor(context, { request });
     return json(result);
   } catch (error) {
     return json(

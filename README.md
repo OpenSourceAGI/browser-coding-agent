@@ -1,4 +1,4 @@
-# @opensourceagi/opends-code
+# WEDITOR - Browser AI Code Editor
 
 OpenVSCode Web, running **entirely in the browser**.
 

@@ -356,6 +356,53 @@ export class OpenDSSession {
     });
 
     bridge.handle("preview.list", () => Array.from(this._previews.values()));
+
+    bridge.handle("sandbox.openEditor", async () => this._openSandboxEditor());
+  }
+
+  private async _openSandboxEditor(): Promise<{ url: string }> {
+    await this.start();
+
+    const sandbox = this.config.sandbox;
+    if (!sandbox.enabled || !this.config.apiBase) {
+      throw new BridgeError(
+        "Unavailable",
+        "the cloud sandbox is not configured for this session",
+      );
+    }
+
+    if (sandbox.syncBeforeAttach) {
+      try {
+        await this._sync?.flush();
+      } catch {
+        // best effort, same reasoning as the terminal's `beforeAttach`
+      }
+    }
+
+    const response = await fetch(`${this.config.apiBase}${sandbox.editorStartPath}`, {
+      method: "POST",
+      credentials: this.config.credentials,
+      headers: {
+        "content-type": "application/json",
+        ...(await resolveHeaders(this._rawConfig)),
+      },
+      body: JSON.stringify({}),
+    });
+
+    if (!response.ok) {
+      throw new BridgeError(
+        "Unavailable",
+        `sandbox editor start failed: ${response.status} ${(await response.text().catch(() => "")).slice(0, 200)}`,
+      );
+    }
+
+    const payload = (await response.json().catch(() => null)) as
+      | { url?: string }
+      | null;
+    if (!payload?.url) {
+      throw new BridgeError("Unavailable", "sandbox editor start returned no url");
+    }
+    return { url: payload.url };
   }
 
   private async _exec(

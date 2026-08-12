@@ -1,5 +1,6 @@
 import type {
   AuthContext,
+  SandboxOpenEditorOptions,
   SandboxServerConfig,
   SandboxStartOptions,
 } from "./types.js";
@@ -31,6 +32,16 @@ export interface SandboxInstanceLike {
     cwd?: string;
     env?: Record<string, string>;
   }): Promise<SandboxSessionLike>;
+  /**
+   * Publishes a container port as a public preview URL, proxied entirely by
+   * Cloudflare's edge — no reverse-proxy code needed on our side, which is
+   * what keeps a second full SPA (`openvscode-server`'s own workbench) from
+   * needing any asset-path rewriting to load correctly.
+   */
+  exposePort(
+    port: number,
+    options?: { hostname?: string },
+  ): Promise<{ url: string }>;
 }
 
 /**
@@ -84,10 +95,13 @@ export interface CloudflareSandboxOptions {
   wsPath?: string;
   /** How long a minted ticket stays valid. Defaults to 60 seconds. */
   ticketTtlMs?: number;
+  /** Port `openvscode-server` listens on inside the container. Defaults to 3000. */
+  editorPort?: number;
 }
 
 const DEFAULT_MOUNT_ROOT = "/mnt/r2";
 const DEFAULT_TICKET_TTL_MS = 60_000;
+const DEFAULT_EDITOR_PORT = 3000;
 
 export function createCloudflareSandbox(
   options: CloudflareSandboxOptions,
@@ -194,6 +208,34 @@ export function createCloudflareSandbox(
         ...(cols ? { cols } : {}),
         ...(rows ? { rows } : {}),
       });
+    },
+
+    async openEditor(context: AuthContext, _openOptions: SandboxOpenEditorOptions) {
+      const sandbox = await ensureReady(context);
+      const port = options.editorPort ?? DEFAULT_EDITOR_PORT;
+
+      // Deterministic per-workspace token: derived from the ticket secret, not
+      // stored anywhere, so it needs no persistence and rotating the secret
+      // revokes every outstanding editor URL along with every terminal ticket.
+      const token = await sign(
+        options.ticketSecret,
+        `editor:${sandboxIdFor(context)}`,
+      );
+
+      // Idempotent: a warm container already running the server is left alone.
+      // `nohup … &` backgrounds the process so `exec` returns immediately
+      // instead of waiting on a server that never exits.
+      await sandbox.exec(
+        `pgrep -f "openvscode-server.*--port ${port}" > /dev/null || ` +
+          `(nohup openvscode-server --host 0.0.0.0 --port ${port} ` +
+          `--connection-token ${token} --default-folder /workspace ` +
+          `> /tmp/openvscode-server.log 2>&1 &)`,
+      );
+
+      const exposed = await sandbox.exposePort(port);
+      const url = new URL(exposed.url);
+      url.searchParams.set("tkn", token);
+      return { url: url.toString() };
     },
   };
 }

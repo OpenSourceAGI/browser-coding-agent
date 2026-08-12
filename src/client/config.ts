@@ -109,6 +109,11 @@ export interface SandboxConfig {
    */
   startPath?: string;
   /**
+   * Path (relative to `apiBase`) of the full-editor start route.
+   * Defaults to `/sandbox/editor/start`.
+   */
+  editorStartPath?: string;
+  /**
    * Push every dirty editor file into the container before attaching the PTY,
    * so `node index.js` in the sandbox runs what is on screen. Defaults to true.
    */
@@ -143,6 +148,7 @@ export function resolveConfig(config: OpenDSCodeConfig): ResolvedConfig {
     sandbox: {
       enabled: Boolean(sandbox.enabled),
       startPath: sandbox.startPath ?? "/sandbox/start",
+      editorStartPath: sandbox.editorStartPath ?? "/sandbox/editor/start",
       syncBeforeAttach: sandbox.syncBeforeAttach ?? true,
       cwd: sandbox.cwd ?? "/workspace",
     },
