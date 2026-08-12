@@ -172,6 +172,46 @@ mints a 60-second HMAC-SHA256 ticket; `/sandbox/ws` verifies it with a
 constant-time compare and derives the identity from the payload. It never
 consults `authorize()`, and that is called out at the branch in `router.ts`.
 
+## Cross-origin isolation, and who can set a header
+
+Everything in the browser half rests on `SharedArrayBuffer`: Nodepod uses it for
+synchronous filesystem reads from worker threads and for blocking `execSync`.
+The browser only exposes it to a cross-origin-isolated document, and isolation
+is a property of the **origin**, not of a page — one un-isolated document takes
+it away from everything.
+
+On a Node host that is one line in `next.config`, because one server answers
+every request. On Cloudflare it is not, and the reason is worth stating plainly:
+**the Worker is not the only thing serving the origin.** Cloudflare's asset
+layer answers matching paths without invoking the Worker at all, which is what
+makes the workbench cheap to serve — and also means no code in the app can put a
+header on those responses. So the property is maintained in three places:
+
+| Mechanism | Covers | Written by |
+|---|---|---|
+| `_headers` in the asset directory | static assets: the workbench build, the bridge extension, the service worker | `opendsVinext()` at build time |
+| The Worker wrapper | app pages, RSC payloads, OpenDS routes, anything the Worker returns | `createOpenDSVinextWorker()` |
+| `next.config` `headers()` | the same app running off-Workers | `openDSHeaders()` |
+
+They overlap on purpose. The failure mode of missing one is not an error — the
+editor loads, `SharedArrayBuffer` is quietly absent, and the runtime falls back
+to message passing. It looks like slowness, not misconfiguration, which is
+exactly why it is worth three mechanisms and a table.
+
+Two related consequences of the same "who is answering?" question:
+
+- **Bindings are not reachable from a route handler.** R2 and the Sandbox
+  namespace live on `env`, which only the Worker entry receives. That is why the
+  Worker builds the server config (`worker/env.ts`) and why `authorize` is
+  handed `env` as well as the request, and why `createOpenDSRouter` accepts a
+  *function* returning config — a catch-all route can then resolve it per
+  request from `cloudflare:workers`.
+- **Nodepod's service worker is a static file, not a route.** `serveSW()` finds
+  `__sw__.js` through `node:fs` and `import.meta.url`; neither survives the
+  workerd bundle, so on Workers the file is copied into `public/` and served by
+  the asset layer, with a `Service-Worker-Allowed` rule so it can claim the root
+  scope.
+
 ## Path coordinates
 
 Three systems, one translation point:

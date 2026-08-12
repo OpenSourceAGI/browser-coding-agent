@@ -18,7 +18,9 @@ export type {
 export { createCloudflareSandbox } from "./sandbox.js";
 export type {
   CloudflareSandboxOptions,
+  SandboxInstanceLike,
   SandboxNamespaceLike,
+  SandboxSessionLike,
 } from "./sandbox.js";
 export {
   buildWorkbenchHtml,

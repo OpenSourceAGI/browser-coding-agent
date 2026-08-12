@@ -4,8 +4,10 @@
 > **New:** [`opends-code/`](./opends-code) packages this as a reusable Next.js
 > component — OpenVSCode Web running entirely client-side on the Nodepod
 > polyfills, persisting to Cloudflare R2, with an opt-in Cloudflare Sandbox
-> container for a full Linux terminal. See its
-> [README](./opends-code/README.md) and
+> container for a full Linux terminal. It deploys as a single Cloudflare Worker
+> on [vinext](https://github.com/cloudflare/vinext) (Next.js on Vite) — see
+> [`example/vinext/`](./opends-code/example/vinext) — or on any Node host. Start
+> with its [README](./opends-code/README.md) and
 > [ARCHITECTURE](./opends-code/ARCHITECTURE.md).
 
 # VS Code in Nodepod

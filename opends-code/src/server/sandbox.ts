@@ -18,18 +18,32 @@ import type {
 
 export interface SandboxInstanceLike {
   exec(command: string): Promise<unknown>;
+  // `options` is `unknown` rather than a record: the SDK's own option types are
+  // interfaces, which have no index signature and so are not assignable to
+  // `Record<string, unknown>` — spelling it out would reject the real SDK.
   mountBucket(
     bucket: string,
     mountPath: string,
-    options?: Record<string, unknown>,
+    options?: unknown,
   ): Promise<unknown>;
   createSession(options: {
     id: string;
     cwd?: string;
     env?: Record<string, string>;
-  }): Promise<unknown>;
-  terminal(request: Request, options?: { session?: unknown }): Promise<Response>;
-  writeFile?(path: string, contents: string | Uint8Array): Promise<unknown>;
+  }): Promise<SandboxSessionLike>;
+}
+
+/**
+ * The PTY hangs off the *session*, not the sandbox.
+ *
+ * `@cloudflare/sandbox` moved it there (0.12): a sandbox can hold several
+ * shells, and each one is a session with its own cwd, env and scrollback.
+ */
+export interface SandboxSessionLike {
+  terminal(
+    request: Request,
+    options?: { cols?: number; rows?: number; shell?: string },
+  ): Promise<Response>;
 }
 
 export interface SandboxNamespaceLike {
@@ -40,9 +54,17 @@ export interface SandboxNamespaceLike {
 export interface CloudflareSandboxOptions {
   /** The Durable Object namespace binding, i.e. `env.Sandbox`. */
   namespace: SandboxNamespaceLike;
-  /** `getSandbox` from `@cloudflare/sandbox`, passed in by the Worker. */
+  /**
+   * `getSandbox` from `@cloudflare/sandbox`, passed in by the Worker.
+   *
+   * The namespace parameter is untyped on purpose: the SDK's own signature is
+   * generic over `DurableObjectNamespace<Sandbox>`, which no structural
+   * stand-in can be assignable to in parameter position. Typing it narrowly
+   * would reject the very function this option exists to receive.
+   */
   getSandbox: (
-    namespace: SandboxNamespaceLike,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    namespace: any,
     id: string,
     options?: Record<string, unknown>,
   ) => SandboxInstanceLike;
@@ -162,7 +184,16 @@ export function createCloudflareSandbox(
         cwd: "/workspace",
       });
 
-      return sandbox.terminal(request, { session });
+      // The size travels in the ticket URL because a browser cannot send it in
+      // a WebSocket handshake; without it the PTY comes up at its default 80x24
+      // and the first redraw is wrong.
+      const cols = positiveInt(url.searchParams.get("cols"));
+      const rows = positiveInt(url.searchParams.get("rows"));
+
+      return session.terminal(request, {
+        ...(cols ? { cols } : {}),
+        ...(rows ? { rows } : {}),
+      });
     },
   };
 }
@@ -234,6 +265,12 @@ async function sign(secret: string, message: string): Promise<string> {
 }
 
 /** Constant-time compare so a ticket cannot be brute-forced byte by byte. */
+/** Query-string integer, or undefined for anything that is not one. */
+function positiveInt(value: string | null): number | undefined {
+  const parsed = Number(value);
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : undefined;
+}
+
 function timingSafeEqual(a: string, b: string): boolean {
   if (a.length !== b.length) return false;
   let diff = 0;

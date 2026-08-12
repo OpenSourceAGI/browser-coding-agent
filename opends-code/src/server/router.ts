@@ -6,6 +6,19 @@ import { FileRoutes, badRequest, json } from "./fs-routes.js";
 import type { AuthContext, OpenDSServerConfig } from "./types.js";
 
 /**
+ * Config that can only be built once a request exists.
+ *
+ * On Workers-based hosts the R2 binding lives on `env`, and a framework whose
+ * route handlers are called with just a `Request` (vinext, Next on Node) has no
+ * other moment to reach for it. Returning the same config object across
+ * requests is expected and cheap — the derived route table is cached per
+ * object, not rebuilt per call.
+ */
+export type OpenDSConfigResolver = (
+  request: Request,
+) => OpenDSServerConfig | Promise<OpenDSServerConfig>;
+
+/**
  * One `fetch` handler for every OpenDS route, framework-agnostic on purpose.
  *
  * Next.js, Hono, Bun, Workers and plain `Request`/`Response` tests all mount
@@ -21,12 +34,27 @@ import type { AuthContext, OpenDSServerConfig } from "./types.js";
  *   POST   /sandbox/start  boot a container and mint a terminal WebSocket URL
  */
 export function createOpenDSRouter(
-  config: OpenDSServerConfig,
+  config: OpenDSServerConfig | OpenDSConfigResolver,
 ): (request: Request) => Promise<Response> {
-  const basePath = (config.basePath ?? "/api/opends").replace(/\/+$/, "");
-  const files = config.store ? new FileRoutes(config.store, config) : null;
+  const resolve: OpenDSConfigResolver =
+    typeof config === "function" ? config : () => config;
+  const routeCache = new WeakMap<OpenDSServerConfig, FileRoutes>();
+
+  function fileRoutesFor(resolved: OpenDSServerConfig): FileRoutes | null {
+    if (!resolved.store) return null;
+    let files = routeCache.get(resolved);
+    if (!files) {
+      files = new FileRoutes(resolved.store, resolved);
+      routeCache.set(resolved, files);
+    }
+    return files;
+  }
 
   return async function handle(request: Request): Promise<Response> {
+    const config = await resolve(request);
+    const basePath = (config.basePath ?? "/api/opends").replace(/\/+$/, "");
+    const files = fileRoutesFor(config);
+
     const url = new URL(request.url);
     const route = routeOf(url.pathname, basePath);
 

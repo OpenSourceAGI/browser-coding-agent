@@ -20,6 +20,7 @@
  *   `/server`   framework-agnostic route handlers
  *   `/next`     Next.js App Router adapter
  *   `/worker`   Cloudflare Worker entry
+ *   `/vinext`   vinext (Next on Vite) on Cloudflare Workers: entry + Vite plugin
  */
 
 export const VERSION = "0.1.0";
