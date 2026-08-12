@@ -20,6 +20,13 @@ import { MemoryStorage } from "../dist/storage/memory-storage.js";
 import { fuzzyScore } from "../dist/client/search-service.js";
 import { encodeBatch, decodeBatch } from "../dist/storage/http-storage.js";
 import { globToRegExp, isExcludedDirectory, normalizePath } from "../dist/protocol/paths.js";
+import {
+  applyIsolationHeaders,
+  createOpenDSVinextHandlers,
+  createOpenDSVinextWorker,
+  openDSAssetHeaders,
+  opendsVinext,
+} from "../dist/vinext/index.js";
 
 const results = [];
 let failures = 0;
@@ -388,6 +395,270 @@ await test("proc.exec runs through the shell and returns output", async () => {
 
 await test("unknown methods fail rather than hang", async () => {
   await assert.rejects(() => client.request("does.not.exist", {}));
+});
+
+/* ---- vinext on Cloudflare Workers ---------------------------------------- */
+
+/**
+ * A stand-in for the `WORKSPACES` R2 binding. Only the four methods
+ * `R2BindingStore` uses are implemented, which is also all `R2BucketLike`
+ * promises.
+ */
+function createFakeBucket() {
+  const objects = new Map();
+  return {
+    async list({ prefix = "" } = {}) {
+      return {
+        objects: [...objects.entries()]
+          .filter(([key]) => key.startsWith(prefix))
+          .map(([key, value]) => ({
+            key,
+            size: value.byteLength,
+            uploaded: new Date(1_700_000_000_000),
+          })),
+        truncated: false,
+      };
+    },
+    async get(key) {
+      const value = objects.get(key);
+      if (!value) return null;
+      return { arrayBuffer: async () => value.buffer.slice(value.byteOffset, value.byteOffset + value.byteLength) };
+    },
+    async put(key, value) {
+      objects.set(key, new Uint8Array(value));
+    },
+    async delete(keys) {
+      for (const key of [].concat(keys)) objects.delete(key);
+    },
+    async head(key) {
+      const value = objects.get(key);
+      return value ? { size: value.byteLength, uploaded: new Date(0) } : null;
+    },
+    _objects: objects,
+  };
+}
+
+/** vinext's app-router entry, reduced to the part this Worker depends on. */
+const fakeVinextHandler = {
+  async fetch(request) {
+    return new Response(`app: ${new URL(request.url).pathname}`, {
+      headers: { "content-type": "text/plain" },
+    });
+  },
+};
+
+function makeVinextWorker(overrides = {}) {
+  return createOpenDSVinextWorker({
+    handler: fakeVinextHandler,
+    authorize: (request) =>
+      request.headers.get("x-user") ? { userId: request.headers.get("x-user") } : null,
+    ...overrides,
+  });
+}
+
+const isolationHeaders = (response) => ({
+  coop: response.headers.get("cross-origin-opener-policy"),
+  coep: response.headers.get("cross-origin-embedder-policy"),
+});
+
+await test("unmatched paths fall through to the vinext app router", async () => {
+  const worker = makeVinextWorker();
+  const response = await worker.fetch(new Request("https://app.dev/dashboard"), {});
+  assert.equal(await response.text(), "app: /dashboard");
+});
+
+await test("app router responses are cross-origin isolated", async () => {
+  // The whole origin has to be isolated for SharedArrayBuffer to exist, so the
+  // host page matters as much as the workbench iframe.
+  const worker = makeVinextWorker();
+  const response = await worker.fetch(new Request("https://app.dev/"), {});
+  assert.deepEqual(isolationHeaders(response), {
+    coop: "same-origin",
+    coep: "credentialless",
+  });
+});
+
+await test("immutable framework responses are copied, not mutated", async () => {
+  const frozen = {
+    async fetch() {
+      // `Response.redirect` produces immutable headers, as several frameworks
+      // do; setting on them throws.
+      return Response.redirect("https://app.dev/login", 302);
+    },
+  };
+  const worker = makeVinextWorker({ handler: frozen });
+  const response = await worker.fetch(new Request("https://app.dev/private"), {});
+  assert.equal(response.status, 302);
+  assert.equal(response.headers.get("location"), "https://app.dev/login");
+  assert.equal(response.headers.get("cross-origin-opener-policy"), "same-origin");
+});
+
+await test("WebSocket upgrades are passed through untouched", async () => {
+  // A 101 cannot be reconstructed — `new Response(body, { status: 101 })`
+  // throws, and the attached socket would be lost anyway.
+  const upgrade = { status: 101, headers: new Headers(), webSocket: {} };
+  assert.equal(applyIsolationHeaders(upgrade), upgrade);
+});
+
+await test("the R2 binding is read from env, not from module scope", async () => {
+  const bucket = createFakeBucket();
+  // keyPrefix / userId / workspaceId / path
+  bucket._objects.set(
+    "workspaces/alice/alice/index.js",
+    new TextEncoder().encode("console.log(1)"),
+  );
+
+  const worker = makeVinextWorker();
+  const response = await worker.fetch(
+    new Request("https://app.dev/api/opends/fs/list", {
+      headers: { "x-user": "alice" },
+    }),
+    { WORKSPACES: bucket },
+  );
+
+  assert.equal(response.status, 200);
+  assert.deepEqual(
+    (await response.json()).map((entry) => entry.path),
+    ["/index.js"],
+  );
+});
+
+await test("one tenant cannot list another's workspace", async () => {
+  const bucket = createFakeBucket();
+  bucket._objects.set(
+    "workspaces/alice/alice/secret.txt",
+    new TextEncoder().encode("x"),
+  );
+
+  const worker = makeVinextWorker();
+  const response = await worker.fetch(
+    new Request("https://app.dev/api/opends/fs/list", {
+      headers: { "x-user": "mallory" },
+    }),
+    { WORKSPACES: bucket },
+  );
+
+  assert.deepEqual(await response.json(), []);
+});
+
+await test("OpenDS routes reject unauthorized callers before touching storage", async () => {
+  const worker = makeVinextWorker();
+  const response = await worker.fetch(
+    new Request("https://app.dev/api/opends/fs/list"),
+    { WORKSPACES: createFakeBucket() },
+  );
+  assert.equal(response.status, 401);
+});
+
+await test("authorize receives the bindings", async () => {
+  let seen = null;
+  const worker = makeVinextWorker({
+    authorize: (_request, env) => {
+      seen = env?.TENANT ?? null;
+      return { userId: "u1" };
+    },
+  });
+  await worker.fetch(new Request("https://app.dev/api/opends/fs/list"), {
+    WORKSPACES: createFakeBucket(),
+    TENANT: "acme",
+  });
+  assert.equal(seen, "acme");
+});
+
+await test("a path merely prefixed by basePath is not an OpenDS route", async () => {
+  const worker = makeVinextWorker();
+  const response = await worker.fetch(
+    new Request("https://app.dev/api/opends-docs"),
+    {},
+  );
+  assert.equal(await response.text(), "app: /api/opends-docs");
+});
+
+await test("the Nodepod service worker is served from the app origin", async () => {
+  const worker = makeVinextWorker({
+    serveSW: () =>
+      new Response("self.addEventListener('fetch', () => {})", {
+        headers: { "content-type": "text/javascript" },
+      }),
+  });
+  const response = await worker.fetch(new Request("https://app.dev/__sw__.js"), {});
+  assert.match(await response.text(), /addEventListener/);
+  assert.equal(response.headers.get("content-type"), "text/javascript");
+});
+
+await test("the workbench document is served without authentication", async () => {
+  // It contains no user data — only the session id the caller already has —
+  // and requiring auth here would mean the iframe could not boot from a
+  // cookie-less context.
+  const worker = makeVinextWorker();
+  const response = await worker.fetch(
+    new Request("https://app.dev/api/opends/workbench?session=s1"),
+    {},
+  );
+  assert.equal(response.status, 200);
+  const html = await response.text();
+  assert.match(html, /workbench\.web\.main\.js/);
+  assert.equal(response.headers.get("cross-origin-embedder-policy"), "credentialless");
+});
+
+await test("route handlers resolve config per request", async () => {
+  // The `/vinext` handler form exists for hosts that mount a catch-all route
+  // instead of a Worker entry; it has to read `env` at request time.
+  let calls = 0;
+  const bucket = createFakeBucket();
+  const { GET } = createOpenDSVinextHandlers({
+    env: () => {
+      calls++;
+      return { WORKSPACES: bucket };
+    },
+    authorize: () => ({ userId: "alice" }),
+  });
+
+  assert.equal((await GET(new Request("https://app.dev/api/opends/fs/list"))).status, 200);
+  assert.equal((await GET(new Request("https://app.dev/api/opends/fs/list"))).status, 200);
+  assert.equal(calls, 2);
+});
+
+await test("_headers isolates the assets the Worker never sees", () => {
+  const headers = openDSAssetHeaders();
+  assert.match(headers, /^\/\*$/m);
+  assert.match(headers, /^ {2}Cross-Origin-Opener-Policy: same-origin$/m);
+  assert.match(headers, /^ {2}Cross-Origin-Embedder-Policy: credentialless$/m);
+});
+
+await test("_headers lets the staged service worker claim the origin", () => {
+  // `serveSW()` cannot run on Workers — it reads the file with node:fs — so
+  // __sw__.js is a static asset, and a static asset needs this header to
+  // register at a scope broader than its own path.
+  assert.match(openDSAssetHeaders(), /^\/__sw__\.js\n {2}Service-Worker-Allowed: \/$/m);
+  assert.doesNotMatch(
+    openDSAssetHeaders({ serviceWorkerPath: null }),
+    /Service-Worker-Allowed/,
+  );
+});
+
+await test("the Vite plugin isolates dev and preview servers", () => {
+  const config = opendsVinext().config();
+  assert.equal(config.server.headers["Cross-Origin-Opener-Policy"], "same-origin");
+  assert.equal(config.preview.headers["Cross-Origin-Embedder-Policy"], "credentialless");
+  assert.ok(config.optimizeDeps.exclude.includes("@scelar/nodepod"));
+});
+
+await test("the Vite plugin emits _headers into the client build only", () => {
+  const plugin = opendsVinext();
+  const emitted = [];
+  const context = (name) => ({
+    environment: { name },
+    emitFile: (file) => emitted.push({ ...file, environment: name }),
+  });
+
+  plugin.generateBundle.call(context("client"));
+  plugin.generateBundle.call(context("ssr"));
+  plugin.generateBundle.call(context("rsc"));
+
+  assert.equal(emitted.length, 1, "only the client build becomes the asset dir");
+  assert.equal(emitted[0].fileName, "_headers");
+  assert.match(emitted[0].source, /Cross-Origin-Opener-Policy/);
 });
 
 /* ---- pure units ---------------------------------------------------------- */

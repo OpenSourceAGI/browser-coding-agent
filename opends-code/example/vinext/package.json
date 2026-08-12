@@ -1,0 +1,36 @@
+{
+  "name": "opends-code-vinext-example",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "OpenDS Code on vinext (Next.js on Vite), deployed as a single Cloudflare Worker.",
+  "scripts": {
+    "postinstall": "npm run stage:workbench",
+    "stage:workbench": "opends-fetch-workbench --out ./public/vscode && cp -r ./node_modules/@opensourceagi/opends-code/extension ./public/opends/extension && cp ./node_modules/@scelar/nodepod/dist/__sw__.js ./public/__sw__.js",
+    "dev": "vite dev",
+    "build": "vinext build",
+    "preview": "vinext start",
+    "deploy": "npm run build && wrangler deploy",
+    "type-check": "tsc --noEmit && tsc --noEmit -p worker/tsconfig.json"
+  },
+  "dependencies": {
+    "@opensourceagi/opends-code": "^0.1.0",
+    "@scelar/nodepod": "^1.9.20",
+    "react": "^19.2.7",
+    "react-dom": "^19.2.7"
+  },
+  "devDependencies": {
+    "@cloudflare/sandbox": "^0.12.5",
+    "@cloudflare/vite-plugin": "^1.40.1",
+    "@cloudflare/workers-types": "^5.20260811.1",
+    "@types/react": "^19.2.17",
+    "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-rsc": "^0.5.34",
+    "next": "16.2.9",
+    "react-server-dom-webpack": "^19.2.7",
+    "typescript": "^5.9.3",
+    "vinext": "^1.0.0-beta.5",
+    "vite": "^8.0.16",
+    "wrangler": "^4.99.0"
+  }
+}

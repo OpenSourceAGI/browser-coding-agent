@@ -109,6 +109,83 @@ export default function Page({ userId }: { userId: string }) {
 That is a complete, persistent, multi-user web IDE with no container in the
 picture. A working copy of these three files is in [`example/`](./example).
 
+## Wire it up (vinext on Cloudflare Workers)
+
+[vinext](https://github.com/cloudflare/vinext) runs the same App Router code on
+Vite and deploys it as a Worker. Three things change, and all three come from
+the same fact: **the Worker is not the only thing answering requests.**
+
+**1. Plugin** — isolates the dev server and writes the `_headers` that isolates
+deployed assets.
+
+```ts
+// vite.config.ts
+import { cloudflare } from "@cloudflare/vite-plugin";
+import { opendsVinext } from "@opensourceagi/opends-code/vinext";
+import { defineConfig } from "vite";
+import vinext from "vinext";
+
+export default defineConfig({
+  plugins: [
+    vinext(),
+    opendsVinext(),
+    cloudflare({ viteEnvironment: { name: "rsc", childEnvironments: ["ssr"] } }),
+  ],
+});
+```
+
+**2. Worker entry** — OpenDS routes in front of the app router. Point `main` in
+`wrangler.jsonc` at it; vinext uses `worker/index.ts` instead of its own entry
+when it exists.
+
+```ts
+// worker/index.ts
+import { createOpenDSVinextWorker } from "@opensourceagi/opends-code/vinext";
+import handler from "vinext/server/app-router-entry";
+import { Sandbox, getSandbox } from "@cloudflare/sandbox";
+
+export { Sandbox };
+export default createOpenDSVinextWorker({
+  handler,                                       // fall-through: the Next app
+  authorize: (request, env) => verifySession(request, env),
+  getSandbox,                                    // omit for no cloud terminals
+});
+```
+
+`env` reaches `authorize` because session lookups usually need a binding, and
+the R2 store is built from `env.WORKSPACES` — a route handler never sees either.
+Prefer a catch-all route anyway? `createOpenDSVinextHandlers({ env: () => env })`
+takes `env` from `cloudflare:workers` and resolves it per request.
+
+**3. Service worker** — copy it into `public/`, do not serve it from the Worker:
+
+```bash
+cp node_modules/@scelar/nodepod/dist/__sw__.js public/__sw__.js
+```
+
+`serveSW()` locates that file with `node:fs` and `import.meta.url`, neither of
+which survives the workerd bundle; it throws at request time. As a static asset
+it is served by the asset layer, with the `Service-Worker-Allowed` rule the
+plugin writes.
+
+A complete, deployable app is in [`example/vinext/`](./example/vinext).
+
+### Why isolation takes three mechanisms there
+
+`SharedArrayBuffer` requires cross-origin isolation, and isolation is a property
+of the **whole origin** — one un-isolated document loses it for everything. On
+Workers no single mechanism covers every response:
+
+| | Covers | Comes from |
+|---|---|---|
+| `_headers` | static assets — the asset layer serves them without ever invoking the Worker | `opendsVinext()` |
+| Worker wrapper | app pages, RSC payloads, OpenDS routes | `createOpenDSVinextWorker()` |
+| `next.config` `headers()` | the same app off-Workers (`vinext start`, Node, Vercel) | `openDSHeaders()` |
+
+Miss the first and the workbench bundle loads un-isolated, `SharedArrayBuffer`
+disappears, and the runtime drops to its slower path — which reads as "the
+editor is just slow", not as a configuration error.
+
 ## Modes
 
 ### Browser-only (the default)
@@ -202,7 +279,8 @@ src/workbench/    product.json + workbench HTML + iframe mount
 src/react/        <OpenDSCode /> and useOpenDSSession()
 src/server/       object stores (R2 binding + S3), routes, sandbox
 src/next/         App Router adapter and header helpers
-src/worker/       Cloudflare Worker entry
+src/worker/       Cloudflare Worker entry + env/bindings resolution
+src/vinext/       vinext-on-Workers entry, route handlers, Vite plugin
 extension/        the VS Code bridge extension (esbuild -> dist/extension.js)
 docker/           container image for the optional cloud terminal
 scripts/          workbench staging + openvscode fork integration

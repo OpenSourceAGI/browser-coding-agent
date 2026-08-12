@@ -98,6 +98,44 @@ export const CROSS_ORIGIN_ISOLATION_HEADERS: Record<string, string> = {
   "Cross-Origin-Resource-Policy": "same-origin",
 };
 
+/**
+ * Stamps the isolation headers onto a response produced by someone else — an
+ * asset binding, a framework's router, a proxied upstream.
+ *
+ * Two responses must be handed back untouched. A `101` cannot be reconstructed
+ * (the `Response` constructor rejects the status, and the attached `webSocket`
+ * would be lost), and a WebSocket handshake is not a document, so isolation
+ * does not apply to it. Frameworks also return responses whose headers are
+ * immutable; those are copied rather than mutated.
+ */
+export function applyIsolationHeaders(response: Response): Response {
+  if (
+    response.status === 101 ||
+    (response as { webSocket?: unknown }).webSocket
+  ) {
+    return response;
+  }
+
+  try {
+    for (const [key, value] of Object.entries(CROSS_ORIGIN_ISOLATION_HEADERS)) {
+      response.headers.set(key, value);
+    }
+    return response;
+  } catch {
+    // Immutable headers (guard: "immutable"); fall through to a copy.
+  }
+
+  const headers = new Headers(response.headers);
+  for (const [key, value] of Object.entries(CROSS_ORIGIN_ISOLATION_HEADERS)) {
+    headers.set(key, value);
+  }
+  return new Response(response.body, {
+    status: response.status,
+    statusText: response.statusText,
+    headers,
+  });
+}
+
 export function workbenchResponseHeaders(
   extra?: Record<string, string>,
 ): Record<string, string> {

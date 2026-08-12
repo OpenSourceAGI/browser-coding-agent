@@ -1,5 +1,9 @@
 import { createOpenDSRouter } from "../server/router.js";
-import { CROSS_ORIGIN_ISOLATION_HEADERS } from "../workbench/html.js";
+import type { OpenDSConfigResolver } from "../server/router.js";
+import {
+  applyIsolationHeaders,
+  CROSS_ORIGIN_ISOLATION_HEADERS,
+} from "../workbench/html.js";
 import type { OpenDSServerConfig } from "../server/types.js";
 
 export type RouteHandler = (request: Request) => Promise<Response>;
@@ -29,9 +33,23 @@ export interface OpenDSNextHandlers {
  *   store: new R2BindingStore(getBucket()),
  * });
  * ```
+ *
+ * Pass a function instead of an object when the config depends on the request
+ * or on bindings that only exist at request time — on Workers-based hosts the
+ * R2 binding is reached through `cloudflare:workers`, which a module-scope
+ * config cannot wait for:
+ *
+ * ```ts
+ * import { env } from "cloudflare:workers";
+ *
+ * export const { GET, POST, PUT, DELETE } = createOpenDSHandlers(() => ({
+ *   authorize,
+ *   store: new R2BindingStore(env.WORKSPACES),
+ * }));
+ * ```
  */
 export function createOpenDSHandlers(
-  config: OpenDSServerConfig,
+  config: OpenDSServerConfig | OpenDSConfigResolver,
 ): OpenDSNextHandlers {
   const handle = createOpenDSRouter(config);
   return {
@@ -71,13 +89,17 @@ export function openDSHeaders(
 /**
  * Middleware helper for hosts that would rather set the isolation headers per
  * request than globally in `next.config.js`.
+ *
+ * Responses whose headers are immutable are copied, and WebSocket upgrades are
+ * passed through untouched — see `applyIsolationHeaders`.
  */
 export function withOpenDSHeaders(response: Response): Response {
-  for (const [key, value] of Object.entries(CROSS_ORIGIN_ISOLATION_HEADERS)) {
-    response.headers.set(key, value);
-  }
-  return response;
+  return applyIsolationHeaders(response);
 }
 
-export { CROSS_ORIGIN_ISOLATION_HEADERS } from "../workbench/html.js";
+export {
+  applyIsolationHeaders,
+  CROSS_ORIGIN_ISOLATION_HEADERS,
+} from "../workbench/html.js";
+export type { OpenDSConfigResolver } from "../server/router.js";
 export type { OpenDSServerConfig } from "../server/types.js";

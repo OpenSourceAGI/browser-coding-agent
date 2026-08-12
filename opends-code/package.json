@@ -47,6 +47,10 @@
       "types": "./dist/worker/index.d.ts",
       "default": "./dist/worker/index.js"
     },
+    "./vinext": {
+      "types": "./dist/vinext/index.d.ts",
+      "default": "./dist/vinext/index.js"
+    },
     "./package.json": "./package.json"
   },
   "bin": {
@@ -74,7 +78,10 @@
     "cloudflare",
     "r2",
     "sandbox",
-    "nextjs"
+    "nextjs",
+    "vinext",
+    "vite",
+    "workers"
   ],
   "peerDependencies": {
     "@cloudflare/sandbox": "^0.12.0",

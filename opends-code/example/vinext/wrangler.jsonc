@@ -1,0 +1,59 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "opends-code-vinext",
+
+  // vinext uses `worker/index.ts` as the Worker entry when it exists, instead
+  // of its own `vinext/server/fetch-handler`. Ours mounts the OpenDS routes in
+  // front of the app router and isolates every response.
+  "main": "worker/index.ts",
+
+  "compatibility_date": "2026-06-01",
+  "compatibility_flags": ["nodejs_compat"],
+
+  "assets": {
+    // The vinext client build, which includes everything staged into public/:
+    // the vscode-web workbench, the bridge extension, and the `_headers` file
+    // emitted by `opendsVinext()`.
+    "directory": "dist/client",
+    "not_found_handling": "none",
+    "binding": "ASSETS"
+  },
+
+  "r2_buckets": [
+    { "binding": "WORKSPACES", "bucket_name": "opends-workspaces" }
+  ],
+
+  "vars": {
+    // Required by the Sandbox SDK: the HTTP and WebSocket transports were
+    // removed after 2026-07-09.
+    "SANDBOX_TRANSPORT": "rpc",
+    "R2_BUCKET_NAME": "opends-workspaces",
+    "R2_ACCOUNT_ID": "YOUR_ACCOUNT_ID"
+
+    // "ALLOW_ANONYMOUS": "1"  — demo only. With no login wired up, this hands
+    // every visitor a workspace chosen by a query parameter. Leave it out and
+    // the routes 401 until `authorize()` returns a real user.
+  },
+
+  // Secrets (set with `wrangler secret put`):
+  //   SHELL_TICKET_SECRET  32+ random bytes; signs the terminal WebSocket
+  //                        ticket. Cloud terminals stay disabled until it
+  //                        exists.
+
+  // Everything below exists only for the optional container terminal. Delete
+  // these three blocks (and the @cloudflare/sandbox import in worker/index.ts)
+  // and the editor still runs — it just loses the "bash (cloud sandbox)"
+  // terminal profile.
+  "containers": [
+    {
+      "class_name": "Sandbox",
+      "image": "../../docker/Dockerfile",
+      "instance_type": "standard-1",
+      "max_instances": 10
+    }
+  ],
+  "durable_objects": {
+    "bindings": [{ "name": "Sandbox", "class_name": "Sandbox" }]
+  },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["Sandbox"] }]
+}

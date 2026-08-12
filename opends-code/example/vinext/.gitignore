@@ -1,0 +1,8 @@
+node_modules/
+dist/
+.wrangler/
+
+# Staged by `npm run stage:workbench`, not source.
+public/vscode/
+public/opends/
+public/__sw__.js
